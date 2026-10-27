@@ -17,7 +17,7 @@ S = np.float32
 def test_es_format_matches_gfortran():
     assert F.es(1.0, 15, 6) == "   1.000000E+00"
     assert F.es(-2.5e-7, 13, 6) == "-2.500000E-07"
-    assert F.es(1e100, 15, 6) == "  1.000000+100"
+    assert F.es(1e100, 15, 6) == "   1.000000+100"
     assert F.es(0.0, 15, 6) == "   0.000000E+00"
 
 
@@ -29,11 +29,12 @@ def test_f_and_i_formats():
 
 
 def test_time_breakdown_single_and_double():
+    units = (F.S(365.25 * 86400), F.S(86400), F.S(3600), F.S(60))
     secs = 365.25 * 86400 + 2 * 86400 + 3 * 3600 + 4 * 60 + 5
-    parts = F.time_breakdown(secs, F.S(365.25 * 86400), F.S(86400), F.S(3600), F.S(60), single=True)
-    assert parts == [1, 2, 3, 4, 5]
-    parts = F.time_breakdown(secs, F.S(365.25 * 86400), F.S(86400), F.S(3600), F.S(60), single=False)
-    assert parts == [1, 2, 3, 4, 5]
+    assert F.time_breakdown(secs, *units, single=False) == [1, 2, 3, 4, 5]
+    # float32 cannot hold seconds next to a year (spacing is 2-4 s there)
+    assert F.time_breakdown(secs, *units, single=True)[:4] == [1, 2, 3, 4]
+    assert F.time_breakdown(2 * 86400 + 3 * 3600 + 4 * 60 + 5, *units, single=True) == [0, 2, 3, 4, 5]
 
 
 def test_endf_numbers():
@@ -62,7 +63,7 @@ def test_direct_production_matches_analytic_solution():
     """A single product with no parents follows N_0 R_i (e^-R_T t - e^-lam t)/(lam - R_T)."""
     st = State(out=io.StringIO())
     st.Ztarget, st.Atarget, st.Zcomp, st.Acomp = 42, 100, 43, 101
-    st.Zdepth, st.Adepth = 0, 2
+    st.Zdepth, st.Adepth = 2, 2    # Z 44..42, A 101..99
     st.k0 = 2
     st.M_target = S(0.2)
     st.Tir, st.Tco = S(86400.0), S(0.0)
@@ -70,8 +71,8 @@ def test_direct_production_matches_analytic_solution():
     st.reaction_rate[(0, 0, -1)] = S(1e-9)
     st.reaction_rate[(43, 99, -1)] = S(2e-10)
     st.lam[(43, 99, -1)] = S(3.2e-5)
-    st.Nisomer[(43, 99)] = -1
     st.rpexist[(43, 99, -1)] = True
+    st.rpexist[(42, 100, -1)] = True   # the target itself (non-elastic file exists)
     st.flagdecay = False
     equations(st)
     N0 = float(st.N_0)
