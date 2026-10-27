@@ -153,9 +153,6 @@ def read_keywords(st: State) -> None:
     st.xsfile = {}
     st.source = "ISOTOPIA"
     st.oformat = "YANDF-0.4"
-    # The Fortran uses the isomer index 'is' before reading it from the line
-    # (see the xsfile keyword below); it starts out undefined there.
-    is_prev = -1
 
     def real(word, current):
         return S(read_real(word, current))
@@ -244,14 +241,16 @@ def read_keywords(st: State) -> None:
                 if iz < 0 or iz > NUMZ or ia < 0 or ia > NUMA:
                     raise IsotopiaError(
                         f" ISOTOPIA-error: Z, A index out of range {line.rstrip()}")
-                st.xsfile[(iz, ia, is_prev)] = word[4]
-                is_prev = -1
+                # Fixed relative to input.f90, which stored the file under the
+                # isomer index of the previous xsfile line (read after use).
+                is_ = -1
                 try:
-                    is_prev = read_int(word[5], is_prev)
+                    is_ = read_int(word[5], is_)
                 except ReadError:
-                    continue
-                if is_prev < -1 or is_prev > NUMISOM:
+                    is_ = -1
+                if is_ < -1 or is_ > NUMISOM:
                     raise _read_error(line)
+                st.xsfile[(iz, ia, is_)] = word[4]
             elif key == "source":
                 st.source = line[line.find("source") + 7:LINELEN].strip()
             elif key == "user":
