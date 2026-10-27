@@ -51,6 +51,14 @@ def _equations(st: State) -> None:
     Tir = float(st.Tir)
     N_0 = float(st.N_0)
 
+    # Fixed relative to equations.f90: start every isotope run of a natural
+    # target from empty inventories. The Fortran only zeroes the nuclides it
+    # is about to compute, so a nuclide produced from one isotope but absent
+    # from the next kept its old inventory, which activities.f90 then added
+    # to the natural-element totals with the new isotope's abundance.
+    st.Niso.clear()
+    st.Nisorel.clear()
+
     R_T = float(st.reaction_rate[(0, 0, -1)])
     Zcomp, Acomp = st.Zcomp, st.Acomp
     for iz in range(Zcomp + 1, Zcomp + 1 - st.Zdepth - 1, -1):

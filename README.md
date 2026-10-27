@@ -94,15 +94,23 @@ the code:
   and Linux Fortran builds disagree there too. `compare.py` allows for this
   kind of noise (see its docstring).
 
-## Known quirks of the Fortran, reproduced here on purpose
+## Differences from the Fortran
 
-These are kept so the outputs match; each is marked in the code and can be
-fixed in a separate change:
+The first commit of the port (`d7794d2`) reproduces the Fortran exactly,
+including two bugs. Each is fixed in its own later commit so the effect can be
+seen in the history:
 
-1. `input.f90`: the `xsfile` keyword stores its file under the isomer index
-   read from the *previous* `xsfile` line (the index is read after it is used).
-2. For natural targets the per-nuclide arrays (`Niso`, `activity`, ...) are not
-   cleared between isotope runs, only overwritten for nuclides that exist in
-   the current run. Values for a nuclide that was produced from one isotope but
-   not the next survive into the later run's output. The `State` containers
-   deliberately persist in the same way.
+1. **`xsfile` isomer index** (`input.f90`): the file name was stored under the
+   isomer index read from the *previous* `xsfile` line, because the index is
+   read after it is used. No sample uses `xsfile`, so outputs are unchanged.
+2. **Stale inventories for natural targets** (`equations.f90`,
+   `activities.f90`): the per-nuclide arrays are only zeroed for nuclides the
+   current isotope run produces. A nuclide made by one isotope but not the
+   next kept its old inventory, which the next run (a) added to the natural
+   totals again, weighted by *its* abundance, and (b) used as a decaying parent
+   during cooling. For natural Ga, nuclides made only by Ga-69 came out
+   1/0.601 = 1.66 times too high, and some cooling-phase inventories were off
+   by orders of magnitude (Cu-66). The port clears the inventories at the start
+   of every isotope run; `tests/test_samples.py::test_natural_abundance_weighting`
+   checks that the merged result is the abundance-weighted sum of the
+   per-isotope results. Single-isotope targets are unaffected.
