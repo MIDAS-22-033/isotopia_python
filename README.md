@@ -31,8 +31,18 @@ one `State` object instead of global arrays.
 
 ## Setup
 
-Python 3.10+ with NumPy. Two environment variables tell the code where the data is,
-exactly as for the Fortran:
+Python 3.10+ with NumPy. The port needs the Fortran repository (for `files/`
+and `samples/`) and the cross-section library. The expected layout is three
+sibling directories, the same arrangement ISOTOPIA itself uses:
+
+```text
+parent_directory/
+├── isotopia/           # github.com/MIDAS-22-033/isotopia_midas, cloned under this name
+├── isotopia_python/    # this repository
+└── isotopia.libs/      # github.com/arjankoning1/isotopia.libs (about 5 GB)
+```
+
+Two environment variables override that layout, exactly as for the Fortran:
 
 ```bash
 export ISOTOPIA_DIR=/path/to/isotopia          # the Fortran repository (needs files/)
