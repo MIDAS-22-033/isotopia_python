@@ -26,7 +26,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-_SKIP = re.compile(r"^\s*(#\s*)?(user|date|User|Date):\s|^\s*crosspath\s|Execution time:")
+_SKIP = re.compile(r"^\s*(#\s*)?(user|date|User|Date):\s|^\s*user\s+.*user for this calculation|^\s*crosspath\s|Execution time:")
 _NUMBER = re.compile(r"^[+-]?(\d+\.?\d*|\.\d+)([eE]?[+-]\d+)?$")
 _BREAKDOWN = re.compile(
     r"(\d+)\s*(?:years|y)\s+(\d+)\s*(?:days|d)\s+(\d+)\s*(?:hours|h)\s+(\d+)\s*(?:minutes|m)"
