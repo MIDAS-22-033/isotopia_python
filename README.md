@@ -123,4 +123,8 @@ seen in the history:
    by orders of magnitude (Cu-66). The port clears the inventories at the start
    of every isotope run; `tests/test_samples.py::test_natural_abundance_weighting`
    checks that the merged result is the abundance-weighted sum of the
-   per-isotope results. Single-isotope targets are unaffected.
+   per-isotope results. Single-isotope targets are unaffected. The Fortran in
+   `isotopia_midas` has the same fix (`equations.f90` clears `Niso` and
+   `Nisorel` at the start of each run), and the references for the two
+   natural-target samples, `p-Ga000-Ge068` and `p-Rb000-Sr082`, were
+   regenerated with it, so the port matches them like every other sample.
