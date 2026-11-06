@@ -28,10 +28,12 @@ one `State` object instead of global arrays.
 | `isotopia_py/fortran.py` | – | gfortran number formatting, list-directed reads, `locate`/`pol1`, float32 helpers |
 | `isotopia_py/compare.py` | `samples/verify` | numeric comparison of two output directories |
 | `isotopia_py/io.py` | – | readers for `.inp` and `.act` files, for post-processing |
+| `isotopia_py/decaylib.py` | – (new) | every decay mode, branching ratio and daughter isomeric state from the same decay files |
+| `isotopia_py/matrix.py` | – (new) | general Bateman solver N(t) = exp(At) N(0); decay only so far |
 
 ## Setup
 
-Python 3.10+ with NumPy. The port needs the Fortran repository (for `files/`
+Python 3.10+ with NumPy (and SciPy for `matrix.py`). The port needs the Fortran repository (for `files/`
 and `samples/`) and the cross-section library. The expected layout is three
 sibling directories, the same arrangement ISOTOPIA itself uses:
 
@@ -74,6 +76,26 @@ st.reaction_rate[(43, 99, 1)]   # reaction constant [s^-1]
 
 Nuclides are keyed `(Z, A, isomer)` with isomer `-1` = total, `0` = ground state,
 `1` = first isomer, `2` = second.
+
+## Matrix solver (decay only)
+
+`matrix.py` is the start of the general solver for multiple hits. It stacks
+all nuclides in a vector and solves dN/dt = A N exactly with a matrix
+exponential (manual Eq. 4.1), so the time grid only chooses output points.
+So far A holds radioactive decay only: every branch, isomeric transitions and
+chains of any length, read by `decaylib.py`. Reactions are not included yet,
+and the main ISOTOPIA run does not use it.
+
+```python
+from isotopia_py.matrix import decay
+inv = decay({(42, 99, 0): 1e15}, times=[0, 3600, 86400])   # Mo-99, times in s
+inv[(43, 99, 1)]            # Tc-99m atoms at each time
+inv.activity((43, 99, 1))   # Tc-99m activity [Bq]
+inv.warnings                # truncated chains, untracked fission, data issues
+```
+
+`tests/test_matrix.py` checks it against closed-form Bateman solutions and
+against the Fortran cooling phase of `p-Mo100-Tc099m`.
 
 ## Checking against the Fortran
 
