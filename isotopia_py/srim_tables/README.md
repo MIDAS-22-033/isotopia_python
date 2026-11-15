@@ -1,0 +1,71 @@
+# SRIM stopping tables
+
+Read with `isotopia_py.srim` (`load_table`). The files are SRIM output, used under SRIM's
+non-commercial terms and not covered by the MIT licence; see `NOTICE`.
+
+| Folder | Projectile (ISOTOPIA symbol) | Files |
+|---|---|---|
+| `p/` | proton (`p`) | `p_in_<Symbol>.txt`, e.g. `p/p_in_Ni.txt` |
+| `a/` | alpha (`a`) | `a_in_<Symbol>.txt`, e.g. `a/a_in_Ni.txt` |
+
+`index.csv` lists every element with the density, target mass and phase used.
+
+## Elements
+
+The 84 elements with a CIAAW standard atomic weight: Z = 1–83 except Tc and Pm, plus Th,
+Pa and U (CRC 107th ed., Section 1, *Standard Atomic Weights*, footnote u).
+
+## SRIM settings
+
+| SR.IN field | Value |
+|---|---|
+| Ion | ISOTOPIA's `parZ` and `parmass` (`constants.f90` lines 46 and 48): p = Z 1, 1.00782495281 u; a = Z 2, 4.00260293529 u. SRIM labels them "Hydrogen" and "Helium" in the header. |
+| Target mass | `mass_u` in the group's `element_data.csv`: CIAAW standard atomic weight (abridged value where CIAAW gives an interval) |
+| Density | `density_g_cm3` in `element_data.csv`: 25 °C, gases at 101.325 kPa. Equal to `constants.RHOTABLE` (checked in `tests/test_srim.py`). |
+| Phase | SRIM gas flag for H, He, N, O, F, Ne, Cl, Ar, Kr, Xe; solid for all others |
+| Compound correction | 1 (none; single elements) |
+| Stopping units | eV/(1E15 atoms/cm2) (SR Module code 7) |
+| Energies | 1 keV to 250 MeV (ISOTOPIA's beam limit, `checkvalue.f90` line 102), on SRIM's own grid: 142 energies, the same in every file. The first prints as "999.999 eV". |
+
+Allotropes use the data-sheet defaults: graphite C, red P, alpha S, gray Se, white Sn
+(gray As, gray Sb).
+
+**Br and Hg are liquids at 25 °C. Their tables are SRIM *solid* calculations using the liquid
+density.**
+
+Only the two dE/dx columns (electronic, nuclear) are used. They are per atom and do not depend
+on density. Range and straggling depend on SRIM's density and are not used.
+
+## How they were made
+
+- **Program:** SRIM's batch stopping program, `SR Module/SRModule.exe`, from a SRIM-2013
+  installation, run under Wine.
+- **Header label:** the headers say "SRIM-2012.01 / Calculation using SRIM-2006", because
+  that is the SR Module's own version label.
+- **Same output as SRIM-2013:** with the same inputs, it reproduced three SRIM-2013.00 outputs
+  from the stopping-table window digit for digit. These were H in Ni at default and at changed
+  mass and density, and Fe in Fe at 3.5 MeV.
+- **Rebuilding:**
+  `python scripts/srim/make_tables.py p element_data.csv "<SRIM>/SR Module" <out>` rebuilds
+  the proton set (`a` for alphas) and writes each exact `SR.IN` next to the tables.
+  `scripts/srim/check_tables.py` repeats the checks below.
+
+## Checks
+
+- Every header's density and ion mass match the inputs, and the target mass implied by the
+  header matches the sheet.
+- Our conversion to MeV/cm matches the MeV/mm factor SRIM prints in each file, to its 5 digits
+  (`tests/test_srim.py`).
+- Electronic stopping vs ISOTOPIA's Bethe-Bloch (`stoppingpower.f90`) at 50–250 MeV, Z ≥ 13:
+  - p: 0.967–1.026
+  - a: 0.934–1.029
+
+  For Z < 13, SRIM is higher than ISOTOPIA's Bethe-Bloch by up to 17% (protons in H),
+  because `stoppingpower.f90` uses its Z ≥ 13 mean-excitation-energy formula for every
+  element.
+- **Interpolation:** `isotopia_py.srim` interpolates linearly in log E and log S. As a test, I
+  dropped each table row in turn and predicted it from its neighbours, which doubles the
+  spacing:
+  - median of the per-table worst errors: 0.5%
+  - every table under 1.6%, except p in He near 2 keV (3.6%)
+  - the error at the real spacing is smaller.

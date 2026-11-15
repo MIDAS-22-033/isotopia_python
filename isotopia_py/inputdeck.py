@@ -9,9 +9,10 @@ import os
 from pathlib import Path
 
 from . import data
-from .constants import NUMA, NUMISOM, NUMLINES, NUMZ, PARSYM, nuc
+from .constants import (NUMA, NUMISOM, NUMLINES, NUMZ, PARSYM, RHOTABLE, RHOTABLE_FORTRAN,
+                        STOPPING_MODELS, nuc)
 from .fortran import S, ReadError, a, es, f, i, read_char, read_int, read_real, tab
-from .state import IsotopiaError, State
+from .state import IsotopiaError, Layer, State
 
 LINELEN = 132
 
@@ -135,6 +136,10 @@ def read_keywords(st: State) -> None:
     st.Area = S(1)
     st.fgamma = S(0.3)
     st.thickness = S(0.05)
+    st.thickness_given = False
+    st.stopping = ""
+    st.layers = []
+    st.target_layer = 0
     st.Tirrad = [0] * 6
     st.unitTirrad = [" "] * 6
     st.Tcool = [0] * 6
@@ -168,7 +173,11 @@ def read_keywords(st: State) -> None:
             elif key == "element":
                 if "0" <= ch <= "9":
                     st.Ztarget = read_int(val, st.Ztarget)
-                    if st.Ztarget < 1 or st.Ztarget > NUMZ:
+                    if st.Ztarget > NUMZ:
+                        raise IsotopiaError(
+                            f" ISOTOPIA-error: element Z = {st.Ztarget}: Z must be <= {NUMZ}"
+                            " (no element beyond oganesson has been made)")
+                    if st.Ztarget < 1:
                         raise _read_error(line)
                     st.Starget = nuc(st.Ztarget)
                 else:
@@ -190,6 +199,30 @@ def read_keywords(st: State) -> None:
                 st.Area = real(val, st.Area)
             elif key == "thickness":
                 st.thickness = real(val, st.thickness)
+                st.thickness_given = True
+            elif key == "stopping":
+                st.stopping = read_char(val, 8, st.stopping)
+            elif key == "layer":
+                # Not in the Fortran:  layer <n> <element> <thickness in cm> [density]
+                #                 or:  layer <n> target
+                # n is the position along the beam (the beam crosses layer 1 first). The
+                # element is a symbol or Z, as for 'element'; -1 marks "not recognised".
+                number = read_int(val)
+                elem = word[3]
+                if elem.strip() == "target":
+                    if st.target_layer:
+                        raise IsotopiaError(
+                            " ISOTOPIA-error: the target is given twice in the layers")
+                    st.target_layer = number
+                    continue
+                if "0" <= elem[:1] <= "9":
+                    z = read_int(elem)
+                else:
+                    symbol = elem[:1].upper() + elem[1:2].ljust(1)
+                    z = next((iz for iz in range(1, NUMZ + 1) if nuc(iz) == symbol), -1)
+                rho = float(read_real(word[5], -1.0)) if word[5].strip() else -1.0
+                st.layers.append(Layer(number=number, Z=z, thickness=float(read_real(word[4])),
+                                       rho=rho))
             elif key == "fgamma":
                 st.fgamma = real(val, st.fgamma)
             elif key == "timeunit":
@@ -268,7 +301,8 @@ def read_keywords(st: State) -> None:
 _KEYWORDS = {
     "", "abundance", "adepth", "area", "crosspath", "currentunit", "decay", "eback", "ebeam",
     "element", "fgamma", "fluxtotal", "format", "ibeam", "mass", "massunit", "outcross",
-    "projectile", "radiounit", "rho", "selfshield", "source", "targetmass", "thickness",
+    "layer", "projectile", "radiounit", "rho", "selfshield", "source", "stopping", "targetmass",
+    "thickness",
     "timeunit", "tirrad", "tcool", "user", "xsfile", "yieldunit", "zaoutput", "zdepth",
 }
 
@@ -318,8 +352,16 @@ def checkvalue(st: State) -> None:
             stop("incident energy must be given")
         if st.Ebeam <= 0 or st.Ebeam > 250:
             stop("0 < Ebeam < 250 MeV")
-        if st.k0 > 1:
-            if st.Eback == S(-1):
+        if st.k0 > 1 and st.thickness_given:
+            # Not in the Fortran: the target is defined by its thickness, and Eback is
+            # solved from it in rates.setup_stopping once the density is known.
+            if st.Eback != S(-1):
+                stop("give either Eback or thickness for a charged-particle target, not both")
+        elif st.k0 > 1:
+            if st.Eback == S(-1) and any(layer.number < st.target_layer for layer in st.layers):
+                pass   # the default depends on the energy left after the front layers:
+                #        rates.setup_stopping sets it
+            elif st.Eback == S(-1):
                 st.Eback = max(st.Ebeam - S(5), S(0.1))
             elif st.Eback <= 0 or st.Eback > 250:
                 stop("0 < Eback < 250 MeV")
@@ -349,6 +391,34 @@ def checkvalue(st: State) -> None:
             stop(f"wrong unit for Tcool = {i(st.Tcool[k], 9)}")
     if st.rho_target != S(-1) and (st.rho_target <= 0 or st.rho_target > 100):
         stop("0 < rhotarget <= 100.")
+    if st.stopping not in ("",) + STOPPING_MODELS:
+        stop("stopping must be equal to " + " or ".join(STOPPING_MODELS))
+    # Not in the Fortran: the stack of numbered layers, one of which is the target
+    if (st.layers or st.target_layer) and st.k0 <= 1:
+        stop("layers are for charged-particle beams (projectile p or a), not for neutrons or photons")
+    if st.layers and not st.target_layer:
+        stop("say which layer is the target, e.g. 'layer 2 target'")
+    numbers = sorted([layer.number for layer in st.layers] + [st.target_layer] * bool(st.target_layer))
+    if numbers != list(range(1, len(numbers) + 1)):
+        stop("layers must be numbered 1, 2, 3, ... along the beam, each number once;"
+             f" the input has {', '.join(str(n) for n in numbers)}")
+    for layer in st.layers:
+        n = layer.number
+        if not 1 <= layer.Z <= NUMZ:
+            stop(f"layer {n}: wrong element")
+        if layer.thickness <= 0 or layer.thickness > 10000:
+            stop(f"layer {n}: 0 < thickness <= 10000 cm")
+        if layer.rho == -1.0:
+            if RHOTABLE[layer.Z - 1] is None:
+                stop(f"layer {n}: no verified density for {nuc(layer.Z).strip()};"
+                     " give its density in g/cm^3 after the thickness")
+            layer.rho = float(RHOTABLE[layer.Z - 1])
+        elif layer.rho <= 0 or layer.rho > 100:
+            stop(f"layer {n}: 0 < density <= 100 g/cm^3")
+    rhotable = RHOTABLE_FORTRAN if st.fortran_defaults else RHOTABLE
+    if st.rho_target == S(-1) and rhotable[st.Ztarget - 1] is None:
+        stop(f"no verified density for {st.Starget.strip()} (Z = {st.Ztarget});"
+             " give the target density in g/cm^3 with the keyword rho")
     if st.targetmass_input != S(-1) and (st.targetmass_input <= 0 or st.targetmass_input > S(1e9)):
         stop("0 < targetmass <= 1.e9")
     if st.fluxtotal <= 0 or st.fluxtotal > S(1e38):
@@ -462,9 +532,22 @@ def inputout(st: State) -> None:
         w(" # Accelerator ")
         w(" #")
         w(" Ebeam             " + f(st.Ebeam, 7, 3) + " Ebeam        incident energy in MeV")
-        if st.k0 > 1:
+        if st.k0 > 1 and st.thickness_given:
+            w(" thickness   " + es(st.thickness, 13, 6) + " thickness    target thickness in cm"
+              " (Eback is calculated from it)")
+        elif st.k0 > 1:
             w(" Eback             " + f(st.Eback, 7, 3) + " Eback        lower end of energy range in MeV")
+        if st.k0 > 1 and st.stopping:
+            w(" stopping          " + a(st.stopping, 7) + " stopping     stopping power model")
         w(" Ibeam             " + f(st.Ibeam_input, 7, 3) + " Ibeam_input  beam current in " + st.cstr.rstrip())
+        for n in range(1, len(st.layers) + 2 if st.target_layer else 1):
+            if n == st.target_layer:
+                w(" layer " + i(n, 2) + " target              layers       the target is layer "
+                  + str(n) + " along the beam")
+                continue
+            layer = next(la for la in st.layers if la.number == n)
+            w(" layer " + i(n, 2) + " " + a(nuc(layer.Z), 2) + es(layer.thickness, 13, 6)
+              + "    layers       thickness in cm; density" + es(layer.rho, 13, 6) + " g/cm^3")
     w(" fgamma            " + f(st.fgamma, 7, 3) + " fgamma       electron-to-photon conversion effiency")
     w(" #")
     w(" # Output ")

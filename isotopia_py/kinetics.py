@@ -30,7 +30,7 @@ def equations(st: State) -> None:
 
 def _equations(st: State) -> None:
     # Initial condition for irradiation
-    st.N_0 = AVOGADRO / S(st.Atarget) * st.M_target
+    st.N_0 = AVOGADRO / st.molar_mass() * st.M_target
     if st.iso == 1:
         st.N_0_nat = st.abun[1] * st.N_0
     else:

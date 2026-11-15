@@ -1,0 +1,85 @@
+﻿Z,symbol,name,form,srim_phase,state_at_25C,density_g_cm3,target_mass_u,p_file,a_file,density_flag
+1,H,Hydrogen,molecular,gas,gas,0.00008240,1.008,p/p_in_H.txt,a/a_in_H.txt,"ideal-gas value (neglects intermolecular forces); CRC lists only the liquid at its boiling point, 0.07083 g/cm3 at -252.9 °C"
+2,He,Helium,,gas,gas,0.0001636,4.002602,p/p_in_He.txt,a/a_in_He.txt,"ideal-gas value (neglects intermolecular forces); CRC lists only the liquid at its boiling point, 0.1250 g/cm3 at -268.9 °C"
+3,Li,Lithium,,solid,solid,0.534,6.94,p/p_in_Li.txt,a/a_in_Li.txt,
+4,Be,Beryllium,,solid,solid,1.85,9.0121831,p/p_in_Be.txt,a/a_in_Be.txt,
+5,B,Boron,,solid,solid,2.34,10.81,p/p_in_B.txt,a/a_in_B.txt,
+6,C,Carbon,graphite,solid,solid,2.2,12.011,p/p_in_C.txt,a/a_in_C.txt,allotrope: default form
+7,N,Nitrogen,molecular,gas,gas,0.001145,14.007,p/p_in_N.txt,a/a_in_N.txt,"ideal-gas value (neglects intermolecular forces); CRC lists only the liquid at its boiling point, 0.8061 g/cm3 at -195.8 °C"
+8,O,Oxygen,molecular,gas,gas,0.001308,15.999,p/p_in_O.txt,a/a_in_O.txt,"ideal-gas value (neglects intermolecular forces); CRC lists only the liquid at its boiling point, 1.141 g/cm3 at -183.0 °C"
+9,F,Fluorine,molecular,gas,gas,0.001553,18.998403162,p/p_in_F.txt,a/a_in_F.txt,"ideal-gas value (neglects intermolecular forces); CRC lists only the liquid at its boiling point, 1.5127 g/cm3 at -188.1 °C"
+10,Ne,Neon,,gas,gas,0.0008248,20.1797,p/p_in_Ne.txt,a/a_in_Ne.txt,"ideal-gas value (neglects intermolecular forces); CRC lists only the liquid at its boiling point, 1.207 g/cm3 at -246.0 °C"
+11,Na,Sodium,,solid,solid,0.97,22.98976928,p/p_in_Na.txt,a/a_in_Na.txt,
+12,Mg,Magnesium,,solid,solid,1.74,24.305,p/p_in_Mg.txt,a/a_in_Mg.txt,
+13,Al,Aluminum,,solid,solid,2.70,26.9815384,p/p_in_Al.txt,a/a_in_Al.txt,
+14,Si,Silicon,,solid,solid,2.3296,28.085,p/p_in_Si.txt,a/a_in_Si.txt,
+15,P,Phosphorus,red,solid,solid,2.16,30.973761998,p/p_in_P.txt,a/a_in_P.txt,allotrope: default form
+16,S,Sulfur,"α, orthorhombic",solid,solid,2.07,32.06,p/p_in_S.txt,a/a_in_S.txt,allotrope: default form
+17,Cl,Chlorine,molecular,gas,gas,0.002898,35.45,p/p_in_Cl.txt,a/a_in_Cl.txt,"ideal-gas value (neglects intermolecular forces); CRC lists only the liquid at its boiling point, 1.565 g/cm3 at -34.0 °C"
+18,Ar,Argon,,gas,gas,0.001633,39.95,p/p_in_Ar.txt,a/a_in_Ar.txt,"ideal-gas value (neglects intermolecular forces); CRC lists only the liquid at its boiling point, 1.395 g/cm3 at -185.8 °C"
+19,K,Potassium,,solid,solid,0.89,39.0983,p/p_in_K.txt,a/a_in_K.txt,
+20,Ca,Calcium,,solid,solid,1.54,40.078,p/p_in_Ca.txt,a/a_in_Ca.txt,
+21,Sc,Scandium,,solid,solid,2.99,44.955907,p/p_in_Sc.txt,a/a_in_Sc.txt,
+22,Ti,Titanium,,solid,solid,4.506,47.867,p/p_in_Ti.txt,a/a_in_Ti.txt,
+23,V,Vanadium,,solid,solid,6.0,50.9415,p/p_in_V.txt,a/a_in_V.txt,
+24,Cr,Chromium,,solid,solid,7.15,51.9961,p/p_in_Cr.txt,a/a_in_Cr.txt,
+25,Mn,Manganese,,solid,solid,7.3,54.938043,p/p_in_Mn.txt,a/a_in_Mn.txt,
+26,Fe,Iron,,solid,solid,7.87,55.845,p/p_in_Fe.txt,a/a_in_Fe.txt,
+27,Co,Cobalt,,solid,solid,8.86,58.933194,p/p_in_Co.txt,a/a_in_Co.txt,
+28,Ni,Nickel,,solid,solid,8.90,58.6934,p/p_in_Ni.txt,a/a_in_Ni.txt,
+29,Cu,Copper,,solid,solid,8.96,63.546,p/p_in_Cu.txt,a/a_in_Cu.txt,
+30,Zn,Zinc,,solid,solid,7.134,65.38,p/p_in_Zn.txt,a/a_in_Zn.txt,
+31,Ga,Gallium,,solid,solid,5.91,69.723,p/p_in_Ga.txt,a/a_in_Ga.txt,
+32,Ge,Germanium,,solid,solid,5.3234,72.63,p/p_in_Ge.txt,a/a_in_Ge.txt,
+33,As,Arsenic,gray,solid,solid,5.75,74.921595,p/p_in_As.txt,a/a_in_As.txt,
+34,Se,Selenium,gray,solid,solid,4.809,78.971,p/p_in_Se.txt,a/a_in_Se.txt,allotrope: default form
+35,Br,Bromine,molecular,solid,liquid,3.0977,79.904,p/p_in_Br.txt,a/a_in_Br.txt,"liquid at 25 °C; modeled in SRIM as a solid with the liquid density; the 25 °C value is computed from the source's equation, not stated in it, and given to the precision of the equation's coefficients (4183.6 and 3.642, about +/- 0.2 kg m-3); Marcus's stated molar volume at 298.15 K (5.155e-5 m3/mol, with his M = 0.15981 kg/mol) gives 3.100, 0.08% higher; CRC (Section 1, p. 1-16, https://hbcp.chemnetbase.com/contents/ContentsSearch.xhtml) gives 3.1028 with no temperature or state, and its default rule would make bromine a solid; CRC's 'Density of Molten Elements as a Function of Temperature' (Section 1, p. 1-47, https://hbcp.chemnetbase.com/contents/ContentsSearch.xhtml) covers only elements solid at room temperature; Sigma-Aldrich lists 3.119 g/mL at 25 °C, citing only '(lit.)'"
+36,Kr,Krypton,,gas,gas,0.003425,83.798,p/p_in_Kr.txt,a/a_in_Kr.txt,"ideal-gas value (neglects intermolecular forces); CRC lists only the liquid at its boiling point, 2.417 g/cm3 at -153.4 °C"
+37,Rb,Rubidium,,solid,solid,1.53,85.4678,p/p_in_Rb.txt,a/a_in_Rb.txt,
+38,Sr,Strontium,,solid,solid,2.64,87.62,p/p_in_Sr.txt,a/a_in_Sr.txt,
+39,Y,Yttrium,,solid,solid,4.47,88.905838,p/p_in_Y.txt,a/a_in_Y.txt,
+40,Zr,Zirconium,,solid,solid,6.52,91.222,p/p_in_Zr.txt,a/a_in_Zr.txt,
+41,Nb,Niobium,,solid,solid,8.57,92.90637,p/p_in_Nb.txt,a/a_in_Nb.txt,
+42,Mo,Molybdenum,,solid,solid,10.2,95.95,p/p_in_Mo.txt,a/a_in_Mo.txt,
+44,Ru,Ruthenium,,solid,solid,12.1,101.07,p/p_in_Ru.txt,a/a_in_Ru.txt,
+45,Rh,Rhodium,,solid,solid,12.4,102.90549,p/p_in_Rh.txt,a/a_in_Rh.txt,
+46,Pd,Palladium,,solid,solid,12.0,106.42,p/p_in_Pd.txt,a/a_in_Pd.txt,
+47,Ag,Silver,,solid,solid,10.5,107.8682,p/p_in_Ag.txt,a/a_in_Ag.txt,
+48,Cd,Cadmium,,solid,solid,8.69,112.414,p/p_in_Cd.txt,a/a_in_Cd.txt,
+49,In,Indium,,solid,solid,7.31,114.818,p/p_in_In.txt,a/a_in_In.txt,
+50,Sn,Tin,white,solid,solid,7.287,118.71,p/p_in_Sn.txt,a/a_in_Sn.txt,allotrope: default form
+51,Sb,Antimony,gray,solid,solid,6.68,121.76,p/p_in_Sb.txt,a/a_in_Sb.txt,
+52,Te,Tellurium,,solid,solid,6.232,127.6,p/p_in_Te.txt,a/a_in_Te.txt,
+53,I,Iodine,molecular,solid,solid,4.933,126.90447,p/p_in_I.txt,a/a_in_I.txt,
+54,Xe,Xenon,,gas,gas,0.005366,131.293,p/p_in_Xe.txt,a/a_in_Xe.txt,"ideal-gas value (neglects intermolecular forces); CRC lists only the liquid at its boiling point, 2.942 g/cm3 at -108.1 °C"
+55,Cs,Cesium,,solid,solid,1.873,132.90545196,p/p_in_Cs.txt,a/a_in_Cs.txt,
+56,Ba,Barium,,solid,solid,3.62,137.327,p/p_in_Ba.txt,a/a_in_Ba.txt,
+57,La,Lanthanum,,solid,solid,6.15,138.90547,p/p_in_La.txt,a/a_in_La.txt,
+58,Ce,Cerium,,solid,solid,6.770,140.116,p/p_in_Ce.txt,a/a_in_Ce.txt,
+59,Pr,Praseodymium,,solid,solid,6.77,140.90766,p/p_in_Pr.txt,a/a_in_Pr.txt,
+60,Nd,Neodymium,,solid,solid,7.01,144.242,p/p_in_Nd.txt,a/a_in_Nd.txt,
+62,Sm,Samarium,,solid,solid,7.52,150.36,p/p_in_Sm.txt,a/a_in_Sm.txt,
+63,Eu,Europium,,solid,solid,5.24,151.964,p/p_in_Eu.txt,a/a_in_Eu.txt,
+64,Gd,Gadolinium,,solid,solid,7.90,157.249,p/p_in_Gd.txt,a/a_in_Gd.txt,
+65,Tb,Terbium,,solid,solid,8.23,158.925354,p/p_in_Tb.txt,a/a_in_Tb.txt,
+66,Dy,Dysprosium,,solid,solid,8.55,162.5,p/p_in_Dy.txt,a/a_in_Dy.txt,
+67,Ho,Holmium,,solid,solid,8.80,164.930329,p/p_in_Ho.txt,a/a_in_Ho.txt,
+68,Er,Erbium,,solid,solid,9.07,167.259,p/p_in_Er.txt,a/a_in_Er.txt,
+69,Tm,Thulium,,solid,solid,9.32,168.934219,p/p_in_Tm.txt,a/a_in_Tm.txt,
+70,Yb,Ytterbium,,solid,solid,6.90,173.045,p/p_in_Yb.txt,a/a_in_Yb.txt,
+71,Lu,Lutetium,,solid,solid,9.84,174.96669,p/p_in_Lu.txt,a/a_in_Lu.txt,
+72,Hf,Hafnium,,solid,solid,13.3,178.486,p/p_in_Hf.txt,a/a_in_Hf.txt,
+73,Ta,Tantalum,,solid,solid,16.4,180.94788,p/p_in_Ta.txt,a/a_in_Ta.txt,
+74,W,Tungsten,,solid,solid,19.3,183.84,p/p_in_W.txt,a/a_in_W.txt,
+75,Re,Rhenium,,solid,solid,20.8,186.207,p/p_in_Re.txt,a/a_in_Re.txt,
+76,Os,Osmium,,solid,solid,22.587,190.23,p/p_in_Os.txt,a/a_in_Os.txt,"the 25 °C value is computed from a fit to the source's tabulated values, not stated in it; given to the precision of the source's table (1 kg m-3); the source states +/- 5 kg m-3 at 293.15 K; every Table II row agrees with the density recomputed from its own lattice parameters (hcp, M = 190.23, N_A = 6.02214129e23) within 1.1 kg m-3; fits over other windows (250-300 K, 200-500 K, 293.15-1300 K) give 22586.9-22587.0 kg m-3; CRC (Section 1, p. 1-16, https://hbcp.chemnetbase.com/contents/ContentsSearch.xhtml) gives 22.587 at 20 °C"
+77,Ir,Iridium,,solid,solid,22.560,192.217,p/p_in_Ir.txt,a/a_in_Ir.txt,"the 25 °C value is computed from a fit to the source's tabulated values, not stated in it; given to the precision of the source's tables (1 kg m-3); the source states +/- 11 kg m-3 at 293.15 K; every row agrees with the density recomputed from its own lattice parameter (fcc, M = 192.217, N_A = 6.02214179e23) within 1.2 kg m-3; fits over other windows (250-300 K, 200-500 K, 293.15-1300 K) and the source's own equation (x) give 22559.7-22559.9 kg m-3; CRC (Section 1, p. 1-16, https://hbcp.chemnetbase.com/contents/ContentsSearch.xhtml) gives 22.562 at 20 °C"
+78,Pt,Platinum,,solid,solid,21.5,195.084,p/p_in_Pt.txt,a/a_in_Pt.txt,
+79,Au,Gold,,solid,solid,19.3,196.96657,p/p_in_Au.txt,a/a_in_Au.txt,
+80,Hg,Mercury,,solid,liquid,13.53359,200.592,p/p_in_Hg.txt,a/a_in_Hg.txt,liquid at 25 °C; modeled in SRIM as a solid with the liquid density
+81,Tl,Thallium,,solid,solid,11.8,204.38,p/p_in_Tl.txt,a/a_in_Tl.txt,
+82,Pb,Lead,,solid,solid,11.3,207.2,p/p_in_Pb.txt,a/a_in_Pb.txt,
+83,Bi,Bismuth,,solid,solid,9.79,208.9804,p/p_in_Bi.txt,a/a_in_Bi.txt,
+90,Th,Thorium,,solid,solid,11.7,232.0377,p/p_in_Th.txt,a/a_in_Th.txt,
+91,Pa,Protactinium,,solid,solid,15.4,231.03588,p/p_in_Pa.txt,a/a_in_Pa.txt,
+92,U,Uranium,,solid,solid,19.1,238.02891,p/p_in_U.txt,a/a_in_U.txt,

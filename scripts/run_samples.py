@@ -54,7 +54,9 @@ def main() -> int:
             t0 = time.time()
             with open(outdir / "isotopia.out", "w", encoding="utf-8", newline="\n") as out:
                 try:
-                    run(inp.read_text(encoding="utf-8").splitlines(), out=out, outdir=str(outdir))
+                    # The references were made with the Fortran's densities and Bethe-Bloch
+                    run(inp.read_text(encoding="utf-8").splitlines(), out=out, outdir=str(outdir),
+                        fortran_defaults=True)
                 except IsotopiaError as exc:
                     out.write(str(exc) + "\n")
             dt = time.time() - t0
