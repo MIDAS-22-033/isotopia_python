@@ -25,35 +25,69 @@ def _fortran_path(p: str) -> str:
 # machine.f90
 # ----------------------------------------------------------------------------
 
-def machine(st: State) -> None:
-    """Set data directories, date and user.
+# This repository: the folder that holds isotopia_py/, and, when it stands alone, files/ and
+# isotopia.libs/
+REPO = Path(__file__).resolve().parents[1]
 
-    As in the Fortran, ISOTOPIA_DIR points at the isotopia code directory and
-    the cross sections default to a sibling ``isotopia.libs``. The Python port
-    adds ISOTOPIA_LIBS to point at the library directly, and falls back to an
-    ``isotopia`` directory next to this repository when ISOTOPIA_DIR is unset.
+
+def data_directories() -> tuple[str, str]:
+    """Where the data are: the folder that holds ``files/`` and the cross-section library.
+
+    Not in the Fortran, which takes both from ISOTOPIA_DIR (machine.f90). Order of search:
+
+    Folder holding ``files/`` (abundance, decay, neutron_spectra, photon_spectra)
+      1. the environment variable ISOTOPIA_DIR, if set (as for the Fortran);
+      2. this repository, if it has ``files/abundance/z001`` (stand-alone layout);
+      3. a folder ``isotopia`` next to this repository (the Fortran code).
+
+    Cross-section library (``isotopia.libs``)
+      1. the environment variable ISOTOPIA_LIBS, if set;
+      2. ``isotopia.libs`` inside this repository, if it exists (stand-alone layout);
+      3. ``isotopia.libs`` next to the folder found above (as for the Fortran).
+
+    Returns
+    -------
+    (str, str)
+        The two folders, with forward slashes and no trailing slash. They are not checked
+        for existence here.
     """
     code_dir = os.environ.get("ISOTOPIA_DIR", "")
     if not code_dir:
-        guess = Path(__file__).resolve().parents[2] / "isotopia"
-        code_dir = str(guess) if guess.is_dir() else "/path/to/isotopia/"
+        if (REPO / "files" / "abundance" / "z001").is_file():
+            code_dir = str(REPO)
+        else:
+            guess = REPO.parent / "isotopia"
+            code_dir = str(guess) if guess.is_dir() else "/path/to/isotopia/"
     code_dir = _fortran_path(code_dir)
     if len(code_dir) > 1 and code_dir.endswith("/"):
         code_dir = code_dir[:-1]
-    k = code_dir.rfind("/")
-    base_dir = code_dir[:k + 1] if k >= 0 else "./"
-    st.path = code_dir + "/"
-    st.crosspath = base_dir + "isotopia.libs/"
     libs = os.environ.get("ISOTOPIA_LIBS", "")
-    if libs:
-        libs = _fortran_path(libs)
-        st.crosspath = libs if libs.endswith("/") else libs + "/"
+    if not libs and (REPO / "isotopia.libs").is_dir():
+        libs = str(REPO / "isotopia.libs")
+    if not libs:
+        k = code_dir.rfind("/")
+        libs = (code_dir[:k + 1] if k >= 0 else "./") + "isotopia.libs"
+    libs = _fortran_path(libs)
+    return code_dir, libs[:-1] if len(libs) > 1 and libs.endswith("/") else libs
+
+
+def machine(st: State) -> None:
+    """Set data directories, date and user.
+
+    The data folders come from ``data_directories``: environment variables as for the
+    Fortran, else ``files/`` and ``isotopia.libs/`` inside this repository, else the
+    Fortran's layout of sibling folders.
+    """
+    code_dir, libs = data_directories()
+    st.path = code_dir + "/"
+    st.crosspath = libs + "/"
     st.libname = "iaea.2026"
     if not os.path.exists(st.path + "files/abundance/z001"):
         raise IsotopiaError(
             "ISOTOPIA error: data files not found.\n"
             f"Expected file: {st.path}files/abundance/z001\n"
-            "Set the ISOTOPIA_DIR environment variable to the isotopia directory.")
+            "Put the 'files' folder of ISOTOPIA in this repository, or set the ISOTOPIA_DIR"
+            " environment variable to the isotopia directory.")
     st.iso = 1
     st.natstring = ["    "] * len(st.natstring)
     st.isonum = 1

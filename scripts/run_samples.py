@@ -20,13 +20,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from isotopia_py.compare import compare_dirs, summarize  # noqa: E402
+from isotopia_py.inputdeck import data_directories  # noqa: E402
 from isotopia_py.run import run  # noqa: E402
 from isotopia_py.state import IsotopiaError  # noqa: E402
 
 
 def isotopia_dir() -> Path:
-    env = os.environ.get("ISOTOPIA_DIR")
-    return Path(env) if env else ROOT.parent / "isotopia"
+    """Folder that holds files/ and samples/ (see inputdeck.data_directories)."""
+    return Path(data_directories()[0])
 
 
 def main() -> int:

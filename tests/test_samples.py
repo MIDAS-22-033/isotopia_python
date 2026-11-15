@@ -1,8 +1,8 @@
 """Run the ISOTOPIA sample cases through the Python port and compare them
 with the reference outputs shipped in isotopia/samples/*/org.
 
-Needs the cross-section library: set ISOTOPIA_DIR (and ISOTOPIA_LIBS when
-isotopia.libs is not a sibling of the isotopia directory). Without it the
+Needs the cross-section library (isotopia.libs in this repository, or ISOTOPIA_LIBS)
+and the samples folder next to files/ (in this repository, or ISOTOPIA_DIR). Without it the
 sample tests are skipped.
 
     pytest                      # every sample (a few minutes)
@@ -16,10 +16,13 @@ from pathlib import Path
 import pytest
 
 from isotopia_py.compare import compare_dirs, summarize
+from isotopia_py.inputdeck import data_directories
 from isotopia_py.run import run
 
 ROOT = Path(__file__).resolve().parents[1]
-ISOTOPIA = Path(os.environ.get("ISOTOPIA_DIR") or ROOT.parent / "isotopia")
+# Data folders as the code finds them: environment variables, else inside this repository,
+# else the Fortran's sibling folders. The samples are next to files/.
+ISOTOPIA, LIBS = (Path(d) for d in data_directories())
 SAMPLES = ISOTOPIA / "samples"
 
 # Files where the Fortran itself differs between platforms: a stable nuclide
@@ -35,8 +38,7 @@ def _cases():
 
 
 def _libs_available() -> bool:
-    libs = os.environ.get("ISOTOPIA_LIBS") or str(ISOTOPIA.parent / "isotopia.libs")
-    return Path(libs).is_dir()
+    return LIBS.is_dir()
 
 
 def _run(case: str, outdir: Path):
@@ -172,7 +174,7 @@ def test_thin_target_between_tabulated_energies_keeps_its_products(tmp_path: Pat
     p + Mo-100 residual files (they step by 1 MeV here), so the Fortran rule drops the
     products. Splitting a target in two must not change what is produced: the rates of the
     windows 16.2 -> 15.9 and 15.9 -> 15.2 add up to those of 16.2 -> 15.2."""
-    if not (Path(os.environ.get("ISOTOPIA_LIBS", "")) / "p" / "Mo100").is_dir():
+    if not (LIBS / "p" / "Mo100").is_dir():
         pytest.skip("p + Mo100 library not found")
     upper = _atoms_per_second(_mo100(tmp_path, "upper", "Ebeam 16.2", "Eback 15.9")[0])
     thin = _atoms_per_second(_mo100(tmp_path, "thin", "Ebeam 15.9", "Eback 15.2")[0])
@@ -190,8 +192,7 @@ def test_production_in_the_layers(tmp_path: Path):
     """Not in the Fortran: each layer the beam reaches is run as a natural-element target at
     the energies of the stack table; the folder of a layer holds the same results as running
     that layer on its own."""
-    libs = Path(os.environ.get("ISOTOPIA_LIBS", ""))
-    if not all((libs / "p" / n).is_dir() for n in ("Mo100", "Al027", "Cu063", "Cu065")):
+    if not all((LIBS / "p" / n).is_dir() for n in ("Mo100", "Al027", "Cu063", "Cu065")):
         pytest.skip("p + Mo100, Al027, Cu063, Cu065 libraries not found")
     beam = ("Ibeam 0.15", "Tirrad 6 h")
     st, d = _mo100(tmp_path, "stack", "Ebeam 18.", "thickness 0.02", *beam, "layer 1 Al 0.0254",

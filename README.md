@@ -33,26 +33,34 @@ one `State` object instead of global arrays.
 
 ## Setup
 
-Python 3.10+ with NumPy. The port needs the Fortran repository (for `files/`
-and `samples/`) and the cross-section library. The expected layout is three
-sibling directories, the same arrangement ISOTOPIA itself uses:
+Python 3.10+ with NumPy. The port needs ISOTOPIA's `files/` folder (abundances, decay
+data, neutron and photon spectra) and the cross-section library. It can stand alone, with
+both inside this repository:
 
 ```text
-parent_directory/
-├── isotopia/           # github.com/MIDAS-22-033/isotopia_midas, cloned under this name
-├── isotopia_python/    # this repository
-└── isotopia.libs/      # github.com/arjankoning1/isotopia.libs (about 5 GB)
+isotopia_python/        # this repository
+├── isotopia_py/        # the code, with the SRIM tables in isotopia_py/srim_tables/
+├── files/              # copied from the Fortran repository (abundance/, decay/, ...)
+├── samples/            # optional, copied from the Fortran repository, for the sample tests
+└── isotopia.libs/      # github.com/arjankoning1/isotopia.libs (about 5 GB, 800 000 files)
 ```
 
-Two environment variables override that layout, exactly as for the Fortran:
+Get the library once, from inside this repository (it is in `.gitignore` and is never
+committed):
 
 ```bash
-export ISOTOPIA_DIR=/path/to/isotopia          # the Fortran repository (needs files/)
-export ISOTOPIA_LIBS=/path/to/isotopia.libs    # optional if it sits next to isotopia/
-export ISOTOPIA_USER="Your Name"               # optional, written in output headers
+git clone --depth 1 https://github.com/arjankoning1/isotopia.libs
 ```
 
-Without `ISOTOPIA_DIR` the code looks for an `isotopia` directory next to this one.
+The code looks for the data in this order (`inputdeck.data_directories`):
+
+1. the environment variables `ISOTOPIA_DIR` (the folder that holds `files/`) and
+   `ISOTOPIA_LIBS` (the library), exactly as for the Fortran;
+2. `files/` and `isotopia.libs/` inside this repository;
+3. the Fortran's layout: a folder `isotopia` next to this repository, and `isotopia.libs`
+   next to that.
+
+`ISOTOPIA_USER="Your Name"` is optional and is written in output headers.
 
 ## Running
 
