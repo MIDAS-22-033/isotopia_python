@@ -29,7 +29,9 @@ one `State` object instead of global arrays.
 | `isotopia_py/compare.py` | `samples/verify` | numeric comparison of two output directories |
 | `isotopia_py/io.py` | – | readers for `.inp` and `.act` files, for post-processing |
 | `isotopia_py/decaylib.py` | – (new) | every decay mode, branching ratio and daughter isomeric state from the same decay files |
-| `isotopia_py/matrix.py` | – (new) | general Bateman solver N(t) = exp(At) N(0); decay only so far |
+| `isotopia_py/matrix.py` | – (new) | general Bateman solver N(t) = exp(Mt) N(0): decay network plus reaction terms |
+| `isotopia_py/irradiation.py` | – (new) | irradiation + cooling of a target with the matrix solver, rates taken from a port run |
+| `isotopia_py/isotopia_compat.py` | `equations.f90` | ISOTOPIA-compatible mode: the port's equations, defects included, as one matrix exponential (for validation) |
 
 ## Setup
 
@@ -77,14 +79,16 @@ st.reaction_rate[(43, 99, 1)]   # reaction constant [s^-1]
 Nuclides are keyed `(Z, A, isomer)` with isomer `-1` = total, `0` = ground state,
 `1` = first isomer, `2` = second.
 
-## Matrix solver (decay only)
+## Matrix solver
 
-`matrix.py` is the start of the general solver for multiple hits. It stacks
-all nuclides in a vector and solves dN/dt = A N exactly with a matrix
-exponential (manual Eq. 4.1), so the time grid only chooses output points.
-So far A holds radioactive decay only: every branch, isomeric transitions and
-chains of any length, read by `decaylib.py`. Reactions are not included yet,
-and the main ISOTOPIA run does not use it.
+`matrix.py` is the general solver for multiple hits. It stacks all nuclides in
+a vector and solves dN/dt = M N exactly with a matrix exponential (manual
+Eq. 4.1), so the time grid only chooses output points. M holds every decay
+branch (isomeric transitions, chains of any length, read by `decaylib.py`)
+and, during irradiation, the reactions on the target. Products are not hit
+again yet. The main ISOTOPIA run does not use it.
+
+Decay only:
 
 ```python
 from isotopia_py.matrix import decay
@@ -94,8 +98,33 @@ inv.activity((43, 99, 1))   # Tc-99m activity [Bq]
 inv.warnings                # truncated chains, untracked fission, data issues
 ```
 
-`tests/test_matrix.py` checks it against closed-form Bateman solutions and
-against the Fortran cooling phase of `p-Mo100-Tc099m`.
+Irradiation, with the beam, target and reaction rates of a port run:
+
+```python
+from isotopia_py import run
+from isotopia_py.irradiation import Irradiation, irradiate, isotopia_times
+st = run(open("isotopia.inp").read().splitlines(), outdir="results")
+irr = Irradiation.from_state(st)                 # target, N0, R_T, R_T->i, times
+inv = irradiate(irr, isotopia_times(st))         # ISOTOPIA's 101 output times
+inv[(43, 99, 1)]                                 # Tc-99m atoms
+inv.warnings                                     # also rate inconsistencies
+```
+
+Differences from ISOTOPIA in this mode are listed in `irradiation.py`: full
+decay feeding (defects 1-4), target decay and refeeding of the target by
+decay, and state-resolved isomer rates. A product missing from the decay
+library stops the run with the file and nuclide; pass `on_missing="warn"` to
+keep it as a chain end with a warning. For a natural target, `run` keeps only
+the last isotope, so `from_state` has to be called per isotope.
+
+`isotopia_compat.compat_inventory(st)` reproduces the port's own equations,
+defects included, with the same matrix machinery. It exists to check the
+solver against the port and is not a physics model.
+
+Tests: `tests/test_matrix.py` (decay) and `tests/test_irradiation.py`
+(closed-form irradiation cases; compatibility mode against the port on every
+sample; full mode against the port for products that neither code feeds by
+decay). Run them with `python -m pytest`.
 
 ## Checking against the Fortran
 

@@ -12,41 +12,19 @@ from __future__ import annotations
 import math
 import re
 from decimal import Decimal, getcontext
-from pathlib import Path
 
 import numpy as np
 import pytest
+from fakes import FakeLibrary
 
 from isotopia_py.constants import NUC
-from isotopia_py.decaylib import (
-    DecayDataError,
-    DecayMode,
-    NuclideDecay,
-    default_decay_dir,
-)
+from isotopia_py.decaylib import DecayDataError, default_decay_dir
 from isotopia_py.io import read_act
 from isotopia_py.matrix import build_chain, decay
 
 # ----------------------------------------------------------------------------
 # 1. Synthetic chains
 # ----------------------------------------------------------------------------
-
-
-class FakeLibrary:
-    """In-memory stand-in for DecayLibrary: {nuclide: (lambda, [(daughter, BR), ...])}."""
-
-    def __init__(self, table):
-        self.table = table
-
-    def file_for(self, z):
-        return Path(f"fake/z{z:03d}")
-
-    def get(self, n):
-        if n not in self.table:
-            return None
-        lam, modes = self.table[n]
-        half = math.log(2) / lam if lam > 0 else math.inf
-        return NuclideDecay(n, half, lam, tuple(DecayMode("1", d, br) for d, br in modes), "fake")
 
 
 P, D, G, E = (1, 1, 0), (2, 1, 0), (3, 1, 0), (4, 1, 0)   # parent, daughter, granddaughter, end

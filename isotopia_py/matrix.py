@@ -1,31 +1,41 @@
-"""General Bateman solver: dN/dt = A N, solved as N(t) = exp(A t) N(0).
+"""General Bateman solver: dN/dt = M N, solved as N(t) = exp(M t) N(0).
 
-Stage 1: radioactive decay only. No nuclear reactions, so no irradiation yet.
+Stage 2: radioactive decay plus reactions on the target. Daughters are not
+hit yet. The irradiation itself (two phases, data from an ISOTOPIA run) is
+set up in ``irradiation.py``; this module holds the network and the solver.
 
-Physics (manual Eq. 4.1 with every reaction constant R set to zero):
+Physics (manual Eq. 4.1):
 
-    dN_i/dt = sum_k lambda_k->i N_k - lambda_i N_i
+    dN_i/dt = sum_k (lambda_k->i + R_k->i) N_k - (lambda_i + R_i) N_i
 
-All nuclides are stacked into one vector N (atoms). The decay matrix A (s^-1)
-has -lambda_i on the diagonal and lambda_k * BR_k->i in row i, column k. With
-A constant, the exact solution at any time t is the matrix exponential
-N(t) = exp(A t) N(0) (manual Section 4.1). Each requested time is computed
-independently from N(0), so the time grid is only a choice of output points:
-there is no step size and no error that builds up from one point to the next.
+All nuclides are stacked into one vector N (atoms). The network keeps two
+matrices of the same shape, both in s^-1:
+
+* A, decay: -lambda_i on the diagonal and lambda_k * BR_k->i in row i, column k;
+* R, reactions: -R_k (the burnup rate) on the diagonal of each irradiated
+  nuclide k and R_k->i in row i, column k.
+
+During irradiation M = A + R; during cooling M = A. With M constant, the
+exact solution at any time t is the matrix exponential N(t) = exp(M t) N(0)
+(manual Section 4.1). Each requested time is computed directly from N(0), so
+the time grid only chooses output points: there is no step size and no error
+that builds up from one point to the next.
 
 Compared with the analytic port (kinetics.py / equations.f90) this treats
-every branch, isomeric transitions and decay chains of any length, which
-removes defects 1-4 in claude/equations_f90_findings.md for decay.
+every decay branch, isomeric transitions and decay chains of any length,
+which removes defects 1-4 in claude/equations_f90_findings.md.
 
-Numerics: the chain is ordered so that every daughter comes before its
-parents, which makes A upper triangular. scipy.sparse.linalg.expm detects
-that and uses Al-Mohy & Higham (2009), Code Fragment 2.1, which recomputes
-the diagonal and first superdiagonal exactly while squaring. That keeps the
-absolute error near 1e-15 of the largest inventory, even for very short- or
-very long-lived nuclides and for nearly equal decay constants.
+Numerics: nuclides are ordered so that every product comes before what
+makes it (daughters before parents, reaction products before the target).
+M is then upper triangular, and scipy.sparse.linalg.expm detects that and
+uses Al-Mohy & Higham (2009), Code Fragment 2.1, which recomputes the
+diagonal exactly while squaring. Matrices are kept dense (numpy arrays):
+for networks of a few hundred nuclides this was 60x faster than sparse
+storage in scipy's expm, with identical results.
 
 Limitations:
-* Inventories smaller than about 1e-15 of the largest one are rounding noise.
+* Inventories much smaller than the largest one can lose relative accuracy;
+  below about 1e-15 of the largest they are rounding noise.
 * Spontaneous fission removes atoms without adding fission products.
 * Library branching ratios are used as given. Where they do not sum to 1,
   atoms are gained or lost; a warning names each such nuclide.
@@ -44,26 +54,50 @@ from .decaylib import DecayDataError, DecayLibrary, Nuclide, label
 BR_SUM_TOL = 1e-3
 
 
+@dataclass(frozen=True)
+class Reactions:
+    """Reactions of one irradiated nuclide k.
+
+    Attributes
+    ----------
+    loss : float
+        Burnup rate R_k [s^-1]: fraction of k's atoms reacting per second.
+    products : mapping of Nuclide to float
+        Production rate R_k->i [s^-1] of each product i per atom of k.
+    """
+
+    loss: float
+    products: Mapping[Nuclide, float]
+
+
 @dataclass
 class DecayChain:
-    """The set of nuclides reachable by decay and their decay matrix.
+    """A set of nuclides linked by decay (and reactions) and their matrices.
 
     Attributes
     ----------
     nuclides : list of Nuclide
-        Keys (Z, A, I), daughters before parents.
+        Keys (Z, A, I), products before the nuclides that make them.
     A : numpy.ndarray
-        Decay matrix [s^-1], shape (n, n): dN/dt = A @ N.
+        Decay matrix [s^-1], shape (n, n): dN/dt = A @ N without a beam.
     lam : numpy.ndarray
         Total decay constant of each nuclide [s^-1].
     warnings : list of str
         Truncated chains, untracked fission and data inconsistencies.
+    R : numpy.ndarray
+        Reaction matrix [s^-1], shape (n, n); all zero without reactions.
+        During irradiation dN/dt = (A + R) @ N.
     """
 
     nuclides: list[Nuclide]
     A: np.ndarray
     lam: np.ndarray
     warnings: list[str] = field(default_factory=list)
+    R: np.ndarray | None = None
+
+    def __post_init__(self):
+        if self.R is None:
+            self.R = np.zeros_like(self.A)
 
     @property
     def index(self) -> dict[Nuclide, int]:
@@ -110,12 +144,13 @@ class Inventory:
 
 
 # ----------------------------------------------------------------------------
-# Building the chain
+# Building the network
 # ----------------------------------------------------------------------------
 
 def build_chain(initial: Iterable[Nuclide], library: DecayLibrary,
-                on_missing: str = "error") -> DecayChain:
-    """Collect every nuclide reachable by decay and build the decay matrix.
+                on_missing: str = "error",
+                reactions: Mapping[Nuclide, Reactions] | None = None) -> DecayChain:
+    """Collect every nuclide reachable by decay or reactions and build A and R.
 
     Parameters
     ----------
@@ -128,22 +163,27 @@ def build_chain(initial: Iterable[Nuclide], library: DecayLibrary,
         DecayDataError naming the file and nuclide. 'warn' keeps the nuclide
         as an end point of the chain (its atoms accumulate, decay not followed)
         and records a warning.
+    reactions : mapping of Nuclide to Reactions, optional
+        Burnup and product rates [s^-1] of each irradiated nuclide.
 
     Returns
     -------
     DecayChain
-        Nuclides with daughters before parents, the matrix A [s^-1] and warnings.
+        Nuclides with products before their sources, the matrices A and R
+        [s^-1] and warnings.
     """
     if on_missing not in ("error", "warn"):
         raise ValueError("on_missing must be 'error' or 'warn'")
-    order: list[Nuclide] = []          # finished nuclides, daughters first
+    reactions = reactions or {}
+    order: list[Nuclide] = []          # finished nuclides, products first
     data = {}                          # decay data per nuclide (None if missing)
     in_progress: set[Nuclide] = set()  # nuclides on the current search path
     warnings: list[str] = []
     cyclic = False
 
-    # Depth-first search: a nuclide is appended only after all its descendants,
-    # so every daughter ends up before its parents in ``order``.
+    # Depth-first search: a nuclide is appended only after everything it can
+    # turn into (decay daughters and reaction products), so every product
+    # ends up before its source in ``order``.
     def visit(n: Nuclide) -> None:
         nonlocal cyclic
         if n in data:
@@ -152,13 +192,13 @@ def build_chain(initial: Iterable[Nuclide], library: DecayLibrary,
             return
         d = library.get(n)
         data[n] = d
+        in_progress.add(n)
         if d is None:
             msg = f"no decay data for {label(n)} in {library.file_for(n[0])}"
             if on_missing == "error":
                 raise DecayDataError(msg)
             warnings.append(f"Truncated chain: {msg}; its decay is not followed.")
         else:
-            in_progress.add(n)
             br_sum = sum(m.branching for m in d.modes)
             if d.modes and abs(br_sum - 1.0) > BR_SUM_TOL:
                 warnings.append(f"Branching ratios of {label(n)} sum to {br_sum:.6g} "
@@ -169,16 +209,19 @@ def build_chain(initial: Iterable[Nuclide], library: DecayLibrary,
                                     "fission; fission products are not tracked.")
                 else:
                     visit(m.daughter)
-            in_progress.discard(n)
+        if n in reactions:
+            for p in reactions[n].products:
+                visit(tuple(p))
+        in_progress.discard(n)
         order.append(n)
 
     for n in initial:
         visit(tuple(n))
     if cyclic:
-        warnings.append("Decay data contain a cycle; the matrix is not triangular and "
-                        "the less accurate general expm path is used.")
+        warnings.append("The decay and reaction links contain a cycle; the matrix is not "
+                        "triangular and the less accurate general expm path is used.")
 
-    # Fill the matrix: -lambda_i on the diagonal, lambda_k * BR into each daughter row.
+    # Decay matrix: -lambda_i on the diagonal, lambda_k * BR into each daughter row.
     index = {n: k for k, n in enumerate(order)}
     lam = np.array([data[n].lam if data[n] is not None else 0.0 for n in order])
     A = np.diag(-lam)
@@ -186,20 +229,53 @@ def build_chain(initial: Iterable[Nuclide], library: DecayLibrary,
         for m in (data[n].modes if data[n] is not None else ()):
             if m.daughter is not None:
                 A[index[m.daughter], k] += lam[k] * m.branching
-    return DecayChain(order, A, lam, warnings)
+
+    # Reaction matrix: -R_k on the diagonal, R_k->i into each product row.
+    R = np.zeros_like(A)
+    for n, rx in reactions.items():
+        k = index[tuple(n)]
+        R[k, k] -= rx.loss
+        for p, rate in rx.products.items():
+            R[index[tuple(p)], k] += rate
+    return DecayChain(order, A, lam, warnings, R)
 
 
 # ----------------------------------------------------------------------------
 # Solving
 # ----------------------------------------------------------------------------
 
+def propagate(M: np.ndarray, N0: np.ndarray, times: Iterable[float]) -> np.ndarray:
+    """N(t) = exp(M t) N0 at each time, for a constant matrix M.
+
+    Parameters
+    ----------
+    M : numpy.ndarray
+        Rate matrix [s^-1], shape (n, n).
+    N0 : numpy.ndarray
+        Atoms of each nuclide at t = 0, shape (n,).
+    times : iterable of float
+        Times after t = 0 [s], each >= 0.
+
+    Returns
+    -------
+    numpy.ndarray
+        Atoms, shape (n_times, n).
+    """
+    times = np.asarray(list(times), dtype=float)
+    if np.any(times < 0):
+        raise ValueError("times must be >= 0")
+    N0 = np.asarray(N0, dtype=float)
+    # Each time is an independent exact evaluation, not a step from the previous one.
+    return np.array([expm(M * t) @ N0 if t > 0 else N0.copy() for t in times])
+
+
 def solve(chain: DecayChain, N0: np.ndarray, times: Iterable[float]) -> np.ndarray:
-    """Inventories N(t) = exp(A t) N0 at each time.
+    """Inventories under decay only, N(t) = exp(A t) N0, at each time.
 
     Parameters
     ----------
     chain : DecayChain
-        Nuclides and decay matrix [s^-1].
+        Nuclides and decay matrix A [s^-1].
     N0 : numpy.ndarray
         Atoms of each nuclide at t = 0, in ``chain.nuclides`` order.
     times : iterable of float
@@ -210,12 +286,7 @@ def solve(chain: DecayChain, N0: np.ndarray, times: Iterable[float]) -> np.ndarr
     numpy.ndarray
         Atoms, shape (n_times, n_nuclides).
     """
-    times = np.asarray(list(times), dtype=float)
-    if np.any(times < 0):
-        raise ValueError("times must be >= 0")
-    N0 = np.asarray(N0, dtype=float)
-    # Each time is an independent exact evaluation, not a step from the previous one.
-    return np.array([expm(chain.A * t) @ N0 if t > 0 else N0.copy() for t in times])
+    return propagate(chain.A, N0, times)
 
 
 def decay(initial: Mapping[Nuclide, float], times: Iterable[float],
