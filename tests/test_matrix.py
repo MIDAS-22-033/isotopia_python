@@ -142,7 +142,7 @@ def test_time_zero_and_negative_times():
 
 def test_missing_data_stops_or_warns():
     lib = FakeLibrary({P: (1e-3, [(D, 1.0)])})   # D absent from the "library"
-    with pytest.raises(DecayDataError, match="fake/z002"):
+    with pytest.raises(DecayDataError, match=re.escape(str(lib.file_for(2)))):
         decay({P: 1.0}, [10.0], lib)
     inv = decay({P: 1.0}, [1e4], lib, on_missing="warn")
     assert any("Truncated chain" in w for w in inv.warnings)
