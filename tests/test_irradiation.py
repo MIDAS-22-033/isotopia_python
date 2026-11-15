@@ -153,6 +153,15 @@ def test_from_state_maps_states_and_warns():
     assert "sum to 0.6889 of R_T" in text
 
 
+def test_from_state_with_zero_burnup():
+    """R_T = 0 (e.g. beam below every threshold) must not divide by zero."""
+    st = State()
+    st.Ztarget, st.Atarget, st.Zcomp, st.Acomp, st.Zdepth, st.Adepth = 42, 100, 43, 101, 2, 2
+    st.reaction_rate[(42, 100, -1)], st.rpexist[(42, 100, -1)] = S(1e-12), True
+    irr = Irradiation.from_state(st)
+    assert irr.burnup == 0.0 and irr.rates == {} and irr.warnings == ()
+
+
 # ----------------------------------------------------------------------------
 # 2. Compatibility mode against the port, made-up State
 # ----------------------------------------------------------------------------

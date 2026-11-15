@@ -173,7 +173,7 @@ class Irradiation:
 
         # Atom balance: the target loses R_T, the products gain the sum of R_T->i.
         produced = sum(rates.values())
-        if self_rate > 0:
+        if self_rate > 0 and R_T > 0:
             warnings.append(f"Reactions leaving {label(target)} unchanged (R = {self_rate:.6e} "
                             f"s^-1, {self_rate / R_T:.4f} of R_T) are not products; the target "
                             "still depletes at the full R_T, as in ISOTOPIA (manual Eq. 4.2).")
