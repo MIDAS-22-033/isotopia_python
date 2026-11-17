@@ -63,8 +63,8 @@ QELEM = S(1.602176634e-19)
 # for these, whose values are NOT confirmed at 25 degC (the data table gives why):
 #   - At: room temperature, an estimate (Arblaster 2018); no bulk astatine has been made;
 #   - Fr: room temperature, an estimate (Arblaster 2018); no bulk francium has been made.
-# Both Arblaster values are as given by the user from the book (ASM International, 2018, page
-# not recorded); the data table gives the full citation.
+# Both Arblaster values are as given by the user from the book (ASM International, 2018): At on
+# p. 604, Fr page not yet recorded. The data table gives the full citation.
 # Solids, Hg and Rn: CRC Handbook of Chemistry and Physics, 107th ed. Br (liquid):
 # Marcus, J. Chem. Thermodyn. 98, 317 (2016), eq. (3) evaluated at 298.15 K (the
 # CRC value, 3.1028, has no temperature). Os, Ir: quadratic fits to Arblaster's
