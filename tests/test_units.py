@@ -24,7 +24,7 @@ def test_density_table():
     assert RHOTABLE[92 - 1] == S(19.1)         # uranium, last element in the data table
     unknown = [z for z in range(1, NUMZ + 1) if RHOTABLE[z - 1] is None]
     assert unknown == list(range(100, 119))     # Fm-Og: no measured density
-    assert RHOTABLE[85 - 1] == S(9.32) and RHOTABLE[87 - 1] == S(2.458)   # At (NIST), Fr (Arblaster)
+    assert RHOTABLE[85 - 1] == S(8.95) and RHOTABLE[87 - 1] == S(2.458)   # At, Fr (Arblaster 2018)
     # Np-Es: CRC density table, except Am-243, Bk-247 and Es-252 from lattice parameters
     assert RHOTABLE[92:99] == [S(r) for r in (20.2, 19.7, 13.79, 13.51, 14.67, 15.1, 8.81)]
     assert ALLOTROPES[97] == (("alpha, dhcp", S(14.67)), ("beta, fcc (metastable)", S(13.15)))  # both Bk-247

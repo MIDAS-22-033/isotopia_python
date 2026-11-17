@@ -28,7 +28,7 @@ one `State` object instead of global arrays.
 | `isotopia_py/fortran.py` | – | gfortran number formatting, list-directed reads, `locate`/`pol1`, float32 helpers |
 | `isotopia_py/compare.py` | `samples/verify` | numeric comparison of two output directories |
 | `isotopia_py/io.py` | – | readers for `.inp` and `.act` files, for post-processing |
-| `isotopia_py/srim.py`, `isotopia_py/srim_tables/` | – (new) | SRIM stopping tables for `p` and `a` in 84 elements, converted to MeV/cm; the default stopping power (see items 7 and 9 below) |
+| `isotopia_py/srim.py`, `isotopia_py/srim_tables/` | – (new) | SRIM stopping tables for `p` and `a` in 86 elements, converted to MeV/cm; the default stopping power (see items 7 and 9 below) |
 | `isotopia_py/energyloss.py` | – (new) | energy loss through a layer: thickness from (E_in, E_out) and exit energy from (E_in, thickness); used for the `thickness` input (see items 8 and 9 below) |
 
 ## Setup
@@ -160,7 +160,8 @@ Later changes that are not in the Fortran:
    from the lattice parameters at 298.15 K in Morss et al. 2006, Table 15.8,
    because the CRC density table lists only beta-Bk; Es: X-ray density for
    Es-252 from the same table, since the CRC gives none). Not confirmed at 25 °C,
-   as listed in `constants.py`: At (NIST) and Fr (Arblaster). Every sample takes its
+   as listed in `constants.py`: At and Fr (Arblaster 2018, room temperature, both
+   estimates). Every sample takes its
    density from this table, so `tests/test_samples.py` runs the samples with
    `fortran_defaults=True`, which uses the original table
    (`constants.RHOTABLE_FORTRAN`), to keep checking the port against the
@@ -179,7 +180,8 @@ Later changes that are not in the Fortran:
    No sample target is one of these elements.
 7. **SRIM stopping tables** (new):
    - `isotopia_py/srim_tables/` holds SRIM stopping per atom, in eV/(1E15 atoms/cm2), for
-     protons and alphas in the 84 elements with a standard atomic weight, from 1 keV to 250 MeV.
+     protons and alphas in the 84 elements with a standard atomic weight, plus At and Fr,
+     from 1 keV to 250 MeV.
    - `isotopia_py.srim` reads them and converts to MeV/cm for a given density and atomic mass:
      `load_table("p", 42).stopping_power(E, rho, mass)`.
    - They are meant to replace the Bethe-Bloch formula (`stoppingpower.f90`), which fails at
@@ -204,7 +206,7 @@ Later changes that are not in the Fortran:
      proceeds as before. Giving both `Eback` and `thickness` is an error. For neutrons and
      photons `thickness` means what it always did.
    - **`stopping srim` or `stopping bethe`**: the stopping-power model. The default is the
-     SRIM tables where one exists (`p` and `a` in 84 elements). Elsewhere the Bethe-Bloch
+     SRIM tables where one exists (`p` and `a` in 86 elements). Elsewhere the Bethe-Bloch
      formula is used and a warning is written. `fortran_defaults` makes Bethe-Bloch the default.
    - **The two inputs agree**: a run with `Ebeam` and `Eback` prints an effective target
      thickness; a run with `Ebeam` and that thickness returns the same `Eback` and the same
@@ -250,7 +252,7 @@ Later changes that are not in the Fortran:
      degraded energy, and layers behind the target leave its results unchanged
      (`tests/test_layers.py`, and `tests/test_samples.py` with the library).
    - **Layers are pure elements at the density of `constants.RHOTABLE`** (25 °C) unless a
-     density is given, and always use the SRIM tables (`p` and `a` in 84 elements).
+     density is given, and always use the SRIM tables (`p` and `a` in 86 elements).
      Compounds and alloys are not available yet.
    - **A beam that stops**: before the target it is an error, because nothing reaches the
      target. In the target or in a later layer it is a warning, and the layers behind are

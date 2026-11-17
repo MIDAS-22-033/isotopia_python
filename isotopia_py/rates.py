@@ -173,7 +173,7 @@ def _setup_target(st: State, warn) -> None:
     if model == "srim" and not has_table:
         if st.stopping == "srim":
             _stop(f"no SRIM stopping table for {particle} in {element}; tables exist for p and a"
-                  " in the 84 elements with a standard atomic weight. Use stopping bethe")
+                  " in the 84 elements with a standard atomic weight, At and Fr. Use stopping bethe")
         warn(f" ISOTOPIA-warning: no SRIM stopping table for {particle} in {element};"
              " the Bethe-Bloch formula is used instead")
         model = "bethe"

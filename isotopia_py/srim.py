@@ -2,7 +2,7 @@
 
 The tables in ``srim_tables/<particle>/<particle>_in_<Symbol>.txt`` (e.g. ``srim_tables/p/p_in_Ni.txt``)
 are SRIM SR Module output for protons (``p``) and alphas (``a``) in the 84 elements that have a
-CIAAW standard atomic weight, from 1 keV to 250 MeV. ``srim_tables/README.md`` gives how they were
+CIAAW standard atomic weight, plus At and Fr, from 1 keV to 250 MeV. ``srim_tables/README.md`` gives how they were
 made, and ``srim_tables/index.csv`` lists the density and atomic mass each one was made with.
 
 The tables give stopping *per atom*, epsilon(E), in eV/(1E15 atoms/cm2). It depends on the
@@ -286,7 +286,7 @@ def load_table(
     if not path.exists():
         raise FileNotFoundError(
             f"no SRIM table for {particle} in {symbol} (Z = {Z}): {path} is missing. "
-            "Tables exist for the 84 elements with a standard atomic weight."
+            "Tables exist for the 84 elements with a standard atomic weight, and for At and Fr."
         )
     table = read_table(path, particle)
     if table.Z != Z:

@@ -20,7 +20,8 @@ def _sheet(z):
 
 
 def test_index_covers_the_natural_elements():
-    natural = [z for z in range(1, 93) if z not in (43, 61, 84, 85, 86, 87, 88, 89)]
+    # the 84 elements with a standard atomic weight, and At and Fr (estimated densities)
+    natural = [z for z in range(1, 93) if z not in (43, 61, 84, 86, 88, 89)]
     assert sorted(INDEX) == natural
 
 

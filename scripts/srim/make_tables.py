@@ -1,12 +1,15 @@
-"""Make SRIM stopping tables for ISOTOPIA projectiles in the 84 natural elements.
+"""Make SRIM stopping tables for ISOTOPIA projectiles in 86 elements.
 
-Usage:  python scripts/srim/make_tables.py <particle> element_data.csv "<SRIM folder>/SR Module" <output folder>
+Usage:  python scripts/srim/make_tables.py <particle> element_data.csv "<SRIM folder>/SR Module" <output folder> [Z ...]
+        Z ...    optional atomic numbers: make only these elements (default: all 86)
         particle = p (proton) or a (alpha), ISOTOPIA's symbols (constants.f90 line 45)
 
 Writes <output folder>/<particle>/<particle>_in_<Symbol>.txt (e.g. p/p_in_Ni.txt) and the exact
 SRIM input used, <particle>/inputs/<particle>_in_<Symbol>.SR.IN.
 
-Elements: the 84 with a CIAAW standard atomic weight (Z = 1-83 except Tc and Pm, plus Th, Pa, U).
+Elements: the 84 with a CIAAW standard atomic weight (Z = 1-83 except Tc and Pm, plus Th, Pa, U),
+and At (Z = 85) and Fr (Z = 87), whose densities are estimates (Arblaster 2018) and whose target
+mass is the longest-lived isotope in the ISOTOPIA decay library (At-210, Fr-223).
 Per element, from the default row of element_data.csv:
   target mass = mass_u (CIAAW standard atomic weight; abridged value where CIAAW gives an interval)
   density     = density_g_cm3 (25 degC; gases at 101.325 kPa)
@@ -25,9 +28,11 @@ from pathlib import Path
 # ---- ISOTOPIA projectiles (constants.f90 lines 45-48): symbol -> (Z, mass in u) -------------
 ION = {"p": (1, "1.00782495281"), "a": (2, "4.00260293529")}
 EMIN_KEV, EMAX_KEV, UNITS = 1, 250000, 7
-NATURAL = [z for z in range(1, 93) if z not in (43, 61, 84, 85, 86, 87, 88, 89)]
+NATURAL = [z for z in range(1, 93) if z not in (43, 61, 84, 86, 88, 89)]   # includes At (85) and Fr (87)
 
 par, CSV, SRDIR, OUT = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4])
+ONLY = [int(z) for z in sys.argv[5:]] or NATURAL
+assert all(z in NATURAL for z in ONLY), "element not in the table set"
 ion_z, ion_mass = ION[par]
 (OUT / par / "inputs").mkdir(parents=True, exist_ok=True)
 
@@ -37,7 +42,7 @@ by_z = {int(r["Z"]): r for r in rows}
 assert all(z in by_z for z in NATURAL), "data sheet is missing an element"
 
 # ---- one SR Module run per element ----------------------------------------------------------
-for z in NATURAL:
+for z in ONLY:
     r = by_z[z]
     sym = r["symbol"].strip()
     name = r["crc_name"].split("(")[0].strip()          # SRIM label only, e.g. "Sulfur"
@@ -62,4 +67,4 @@ for z in NATURAL:
     shutil.move(SRDIR / fname, OUT / par / fname)
     shutil.copy(SRDIR / "SR.IN", OUT / par / "inputs" / f"{par}_in_{sym}.SR.IN")
 
-print(f"{len(NATURAL)} {par} tables written to {OUT / par}")
+print(f"{len(ONLY)} {par} tables written to {OUT / par}")

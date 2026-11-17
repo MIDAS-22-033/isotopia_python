@@ -1,4 +1,4 @@
-"""Check SRIM stopping tables made by make_tables.py.
+"""Check SRIM stopping tables made by make_tables.py (86 elements: 84 natural, At and Fr).
 
 Usage:  python scripts/srim/check_tables.py <particle> element_data.csv <output folder>
 
@@ -17,7 +17,7 @@ from pathlib import Path
 NA = 6.02214076e23
 ION = {"p": (1, 1.00782495281), "a": (2, 4.00260293529)}       # constants.f90 lines 46, 48
 UNIT = {"eV": 1e-6, "keV": 1e-3, "MeV": 1.0, "GeV": 1e3}         # energy units -> MeV
-NATURAL = [z for z in range(1, 93) if z not in (43, 61, 84, 85, 86, 87, 88, 89)]
+NATURAL = [z for z in range(1, 93) if z not in (43, 61, 84, 86, 88, 89)]   # includes At (85) and Fr (87)
 
 par, CSV, OUT = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3])
 ion_z, ion_mass = ION[par]

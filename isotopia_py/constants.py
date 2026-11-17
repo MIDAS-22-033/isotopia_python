@@ -61,8 +61,10 @@ QELEM = S(1.602176634e-19)
 # Values are from the group's element data table (element_data.csv), the row
 # marked default for each element, at 25 degC (and 101.325 kPa for gases), except
 # for these, whose values are NOT confirmed at 25 degC (the data table gives why):
-#   - At: NIST STAR value (no temperature stated); no bulk astatine has been made;
-#   - Fr: room temperature (Arblaster 2018); no bulk francium has been made.
+#   - At: room temperature, an estimate (Arblaster 2018); no bulk astatine has been made;
+#   - Fr: room temperature, an estimate (Arblaster 2018); no bulk francium has been made.
+# Both Arblaster values are as given by the user from the book (ASM International, 2018, page
+# not recorded); the data table gives the full citation.
 # Solids, Hg and Rn: CRC Handbook of Chemistry and Physics, 107th ed. Br (liquid):
 # Marcus, J. Chem. Thermodyn. 98, 317 (2016), eq. (3) evaluated at 298.15 K (the
 # CRC value, 3.1028, has no temperature). Os, Ir: quadratic fits to Arblaster's
@@ -102,7 +104,7 @@ RHOTABLE = [None if r is None else S(r) for r in (
     6.68, 6.232, 4.933, 0.005366, 1.873, 3.62, 6.15, 6.770, 6.77, 7.01,  # Z 51-60: Sb-Nd
     7.26, 7.52, 5.24, 7.90, 8.23, 8.55, 8.80, 9.07, 9.32, 6.90,  # Z 61-70: Pm-Yb
     9.84, 13.3, 16.4, 19.3, 20.8, 22.587, 22.560, 21.5, 19.3, 13.53359,  # Z 71-80: Lu-Hg
-    11.8, 11.3, 9.79, 9.20, 9.32, 0.009074, 2.458, 5, 10, 11.7,  # Z 81-90: Tl-Th
+    11.8, 11.3, 9.79, 9.20, 8.95, 0.009074, 2.458, 5, 10, 11.7,  # Z 81-90: Tl-Th
     15.4, 19.1, 20.2, 19.7, 13.79, 13.51, 14.67, 15.1, 8.81, None,  # Z 91-100: Pa-Fm
     None, None, None, None, None, None, None, None, None, None,  # Z 101-110: Md-Ds
     None, None, None, None, None, None, None, None,  # Z 111-118: Rg-Og

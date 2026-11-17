@@ -12,8 +12,20 @@ non-commercial terms and not covered by the MIT licence; see `NOTICE`.
 
 ## Elements
 
-The 84 elements with a CIAAW standard atomic weight: Z = 1–83 except Tc and Pm, plus Th,
-Pa and U (CRC 107th ed., Section 1, *Standard Atomic Weights*, footnote u).
+86 elements:
+
+- The 84 with a CIAAW standard atomic weight: Z = 1–83 except Tc and Pm, plus Th, Pa and U
+  (CRC 107th ed., Section 1, *Standard Atomic Weights*, footnote u).
+- **At and Fr.** Their densities are estimates at "room temperature" (25 °C is not stated),
+  Arblaster, *Selected Values of the Crystallographic Properties of the Elements*, ASM
+  International (2018): At 8.95 g/cm³, Fr 2.458 g/cm³. Their target masses are those of the
+  longest-lived isotopes in ISOTOPIA's decay library, At-210 (209.987 u) and Fr-223
+  (223.020 u). No bulk sample of either element exists, so SRIM has no measured stopping
+  data for them: its values come from its own interpolation between neighbouring elements.
+  Above 10 MeV they follow the neighbours smoothly (electronic stopping per atom divided by
+  Z changes by under 2% from Bi to Th). Below about 1 MeV the per-atom values differ by up to
+  about 20% between neighbouring elements, Pb and Bi included, so treat the low-energy end
+  as rough.
 
 ## SRIM settings
 
@@ -22,7 +34,7 @@ Pa and U (CRC 107th ed., Section 1, *Standard Atomic Weights*, footnote u).
 | Ion | ISOTOPIA's `parZ` and `parmass` (`constants.f90` lines 46 and 48): p = Z 1, 1.00782495281 u; a = Z 2, 4.00260293529 u. SRIM labels them "Hydrogen" and "Helium" in the header. |
 | Target mass | `mass_u` in the group's `element_data.csv`: CIAAW standard atomic weight (abridged value where CIAAW gives an interval) |
 | Density | `density_g_cm3` in `element_data.csv`: 25 °C, gases at 101.325 kPa. Equal to `constants.RHOTABLE` (checked in `tests/test_srim.py`). |
-| Phase | SRIM gas flag for H, He, N, O, F, Ne, Cl, Ar, Kr, Xe; solid for all others |
+| Phase | SRIM gas flag for H, He, N, O, F, Ne, Cl, Ar, Kr, Xe; solid for all others (At and Fr too) |
 | Compound correction | 1 (none; single elements) |
 | Stopping units | eV/(1E15 atoms/cm2) (SR Module code 7) |
 | Energies | 1 keV to 250 MeV (ISOTOPIA's beam limit, `checkvalue.f90` line 102), on SRIM's own grid: 142 energies, the same in every file. The first prints as "999.999 eV". |

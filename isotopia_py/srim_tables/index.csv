@@ -80,6 +80,8 @@
 81,Tl,Thallium,,solid,solid,11.8,204.38,p/p_in_Tl.txt,a/a_in_Tl.txt,
 82,Pb,Lead,,solid,solid,11.3,207.2,p/p_in_Pb.txt,a/a_in_Pb.txt,
 83,Bi,Bismuth,,solid,solid,9.79,208.9804,p/p_in_Bi.txt,a/a_in_Bi.txt,
+85,At,Astatine,,solid,solid,8.95,209.987,p/p_in_At.txt,a/a_in_At.txt,"NOT CONFIRMED AT 25 °C: room temperature, an estimate (Arblaster 2018); no bulk astatine has been made; target mass is At-210, the longest-lived isotope in ISOTOPIA's decay library; SRIM stopping for this element is not backed by measurements"
+87,Fr,Francium,,solid,solid,2.458,223.020,p/p_in_Fr.txt,a/a_in_Fr.txt,"NOT CONFIRMED AT 25 °C: room temperature, an estimate (Arblaster 2018); no bulk francium has been made; target mass is Fr-223, the longest-lived isotope in ISOTOPIA's decay library; SRIM stopping for this element is not backed by measurements"
 90,Th,Thorium,,solid,solid,11.7,232.0377,p/p_in_Th.txt,a/a_in_Th.txt,
 91,Pa,Protactinium,,solid,solid,15.4,231.03588,p/p_in_Pa.txt,a/a_in_Pa.txt,
 92,U,Uranium,,solid,solid,19.1,238.02891,p/p_in_U.txt,a/a_in_U.txt,
