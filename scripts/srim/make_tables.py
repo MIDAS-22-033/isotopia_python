@@ -2,7 +2,8 @@
 
 Usage:  python scripts/srim/make_tables.py <particle> element_data.csv "<SRIM folder>/SR Module" <output folder> [Z ...]
         Z ...    optional atomic numbers: make only these elements (default: all 86)
-        particle = p (proton) or a (alpha), ISOTOPIA's symbols (constants.f90 line 45)
+        particle = p (proton), d (deuteron), t (triton), h (helium-3) or a (alpha): ISOTOPIA's
+                   symbols (constants.f90 line 45)
 
 Writes <output folder>/<particle>/<particle>_in_<Symbol>.txt (e.g. p/p_in_Ni.txt) and the exact
 SRIM input used, <particle>/inputs/<particle>_in_<Symbol>.SR.IN.
@@ -14,7 +15,8 @@ Per element, from the default row of element_data.csv:
   target mass = mass_u (CIAAW standard atomic weight; abridged value where CIAAW gives an interval)
   density     = density_g_cm3 (25 degC; gases at 101.325 kPa)
   phase       = srim_phase (gas -> SRIM gas flag 1; Br and Hg liquids are run as solids)
-Ion Z and mass: ISOTOPIA's parZ and parmass (constants.f90 lines 46 and 48).
+Ion Z and mass: ISOTOPIA's parZ and parmass (constants.f90 lines 46 and 48), so the ion mass is the
+atomic mass of H-1, H-2, H-3, He-3 or He-4 as ISOTOPIA writes it.
 Units: eV/(1E15 atoms/cm2) (SR Module code 7). Energies: 1 keV to 250 MeV (ISOTOPIA's Ebeam
 limit, checkvalue.f90 line 102) on SRIM's own grid.
 """
@@ -26,7 +28,13 @@ import sys
 from pathlib import Path
 
 # ---- ISOTOPIA projectiles (constants.f90 lines 45-48): symbol -> (Z, mass in u) -------------
-ION = {"p": (1, "1.00782495281"), "a": (2, "4.00260293529")}
+ION = {
+    "p": (1, "1.00782495281"),
+    "d": (1, "2.01410195518"),
+    "t": (1, "3.01604916211"),
+    "h": (2, "3.01602879487"),     # helium-3
+    "a": (2, "4.00260293529"),
+}
 EMIN_KEV, EMAX_KEV, UNITS = 1, 250000, 7
 NATURAL = [z for z in range(1, 93) if z not in (43, 61, 84, 86, 88, 89)]   # includes At (85) and Fr (87)
 

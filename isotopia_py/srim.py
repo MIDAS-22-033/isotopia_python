@@ -1,7 +1,8 @@
 """SRIM stopping tables for ISOTOPIA projectiles in the natural elements (new; not in the Fortran).
 
 The tables in ``srim_tables/<particle>/<particle>_in_<Symbol>.txt`` (e.g. ``srim_tables/p/p_in_Ni.txt``)
-are SRIM SR Module output for protons (``p``) and alphas (``a``) in the 84 elements that have a
+are SRIM SR Module output for protons (``p``), deuterons (``d``), tritons (``t``), helium-3
+(``h``) and alphas (``a``) in the 84 elements that have a
 CIAAW standard atomic weight, plus At and Fr, from 1 keV to 250 MeV. ``srim_tables/README.md`` gives how they were
 made, and ``srim_tables/index.csv`` lists the density and atomic mass each one was made with.
 
@@ -45,7 +46,7 @@ from .constants import NUC, PARMASS, PARSYM, PARZ
 
 # Shipped tables (licence terms in srim_tables/NOTICE) and the ISOTOPIA projectiles they cover
 TABLE_DIR = Path(__file__).with_name("srim_tables")
-PARTICLES = ("p", "a")
+PARTICLES = ("p", "d", "t", "h", "a")
 
 # Avogadro constant, mol^-1 (exact, SI 2019), in double precision. constants.AVOGADRO is the
 # Fortran's single-precision copy, kept there for digit-identical sample output.
@@ -67,7 +68,7 @@ class StoppingTable:
     Attributes
     ----------
     particle : str
-        ISOTOPIA projectile symbol ('p' or 'a').
+        ISOTOPIA projectile symbol: 'p', 'd', 't', 'h' (helium-3) or 'a'.
     Z : int
         Atomic number of the target element.
     symbol : str
@@ -196,7 +197,7 @@ def read_table(path: str | Path, particle: str) -> StoppingTable:
         SRIM output file. Its stopping units must be eV/(1E15 atoms/cm2), and the target
         must be a single element.
     particle : str
-        ISOTOPIA projectile symbol the table is for ('p' or 'a'). The ion Z and mass in the
+        ISOTOPIA projectile symbol the table is for ('p', 'd', 't', 'h' or 'a'). The ion Z and mass in the
         header must match ISOTOPIA's (constants.PARZ, constants.PARMASS) to the printed digits.
 
     Returns
@@ -267,7 +268,7 @@ def load_table(
     Parameters
     ----------
     particle : str
-        ISOTOPIA projectile symbol, 'p' or 'a'.
+        ISOTOPIA projectile symbol: 'p', 'd', 't', 'h' (helium-3) or 'a'.
     Z : int
         Atomic number of the target element.
     table_dir : str or pathlib.Path, optional

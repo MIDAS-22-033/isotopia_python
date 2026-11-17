@@ -15,7 +15,13 @@ import sys
 from pathlib import Path
 
 NA = 6.02214076e23
-ION = {"p": (1, 1.00782495281), "a": (2, 4.00260293529)}       # constants.f90 lines 46, 48
+ION = {                                                          # constants.f90 lines 46, 48
+    "p": (1, 1.00782495281),
+    "d": (1, 2.01410195518),
+    "t": (1, 3.01604916211),
+    "h": (2, 3.01602879487),
+    "a": (2, 4.00260293529),
+}
 UNIT = {"eV": 1e-6, "keV": 1e-3, "MeV": 1.0, "GeV": 1e3}         # energy units -> MeV
 NATURAL = [z for z in range(1, 93) if z not in (43, 61, 84, 86, 88, 89)]   # includes At (85) and Fr (87)
 

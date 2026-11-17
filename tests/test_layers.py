@@ -336,9 +336,9 @@ def test_each_reached_layer_is_run_as_a_natural_target(monkeypatch, tmp_path):
                 "mass 100",
                 "Ebeam 18.",
                 "layer 1 target",
-                "layer 2 Al 0.01",
+                "layer 2 Tc 0.01",
             ),
-            "layer 2: no SRIM tables for projectile 'd'",
+            "layer 2: no SRIM table for d in Tc",
         ),
     ],
 )

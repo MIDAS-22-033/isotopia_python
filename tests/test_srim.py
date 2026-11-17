@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from isotopia_py import srim
-from isotopia_py.constants import RHOTABLE
+from isotopia_py.constants import PARMASS, PARSYM, RHOTABLE
 
 INDEX = srim.table_inputs()
 CASES = [(p, z) for p in srim.PARTICLES for z in sorted(INDEX)]
@@ -97,8 +97,26 @@ def test_energy_outside_table_is_an_error(E):
 def test_unavailable_tables_are_errors():
     with pytest.raises(FileNotFoundError, match="no SRIM table for p in Tc"):
         srim.load_table("p", 43)
-    with pytest.raises(ValueError, match="no SRIM tables for projectile 'd'"):
-        srim.load_table("d", 28)
+    with pytest.raises(ValueError, match="no SRIM tables for projectile 'n'"):
+        srim.load_table("n", 28)
+
+
+@pytest.mark.parametrize("heavy,light", [("d", "p"), ("t", "p"), ("h", "a")])
+def test_electronic_stopping_scales_with_velocity(heavy, light):
+    """Ions of the same charge at the same velocity have the same electronic stopping, so
+    S_e of d or t at E * m/m_p equals S_e of p at E (He-3 vs alpha alike). The tables are
+    separate SRIM runs, so this checks them against each other; the limit covers the four
+    printed digits and the interpolation (worst seen: 0.38%, He-3 vs alpha)."""
+    k = {p: i for i, p in enumerate(PARSYM)}
+    ratio = PARMASS[k[heavy]] / PARMASS[k[light]]
+    E = np.geomspace(0.01, 80.0, 25)
+    for z in INDEX:
+        slow, fast = srim.load_table(light, z), srim.load_table(heavy, z)
+        assert np.allclose(
+            fast.per_atom(E * ratio, "electronic"),
+            slow.per_atom(E, "electronic"),
+            rtol=5e-3,
+        ), z
 
 
 def test_density_table_matches_srim_inputs():

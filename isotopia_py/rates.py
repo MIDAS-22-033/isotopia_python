@@ -148,8 +148,8 @@ def _setup_target(st: State, warn) -> None:
     (path length versus energy for the target, energies in MeV and lengths in cm; None when
     Bethe-Bloch is used with Ebeam and Eback) and, for a thickness input, ``st.Eback`` [MeV].
 
-    Model: keyword 'stopping'. Default: SRIM tables where they exist (p and a in the 84
-    elements of isotopia_py/srim_tables), otherwise Bethe-Bloch with a warning. With
+    Model: keyword 'stopping'. Default: SRIM tables where they exist (p, d, t, h and a in
+    the 86 elements of isotopia_py/srim_tables), otherwise Bethe-Bloch with a warning. With
     ``st.fortran_defaults`` the default is Bethe-Bloch, as in the Fortran.
 
     Atoms per cm3 are N_A rho / M with M = ``st.molar_mass()``: the mass number of a
@@ -172,8 +172,8 @@ def _setup_target(st: State, warn) -> None:
     model = st.stopping or ("bethe" if st.fortran_defaults else "srim")
     if model == "srim" and not has_table:
         if st.stopping == "srim":
-            _stop(f"no SRIM stopping table for {particle} in {element}; tables exist for p and a"
-                  " in the 84 elements with a standard atomic weight, At and Fr. Use stopping bethe")
+            _stop(f"no SRIM stopping table for {particle} in {element}; tables exist for p, d, t,"
+                  " h and a in the 84 elements with a standard atomic weight, At and Fr. Use stopping bethe")
         warn(f" ISOTOPIA-warning: no SRIM stopping table for {particle} in {element};"
              " the Bethe-Bloch formula is used instead")
         model = "bethe"
