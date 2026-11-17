@@ -1,17 +1,17 @@
-"""Make SRIM stopping tables for ISOTOPIA projectiles in 87 elements.
+"""Make SRIM stopping tables for ISOTOPIA projectiles in all 92 elements, H to U.
 
 Usage:  python scripts/srim/make_tables.py <particle> element_data.csv "<SRIM folder>/SR Module" <output folder> [Z ...]
-        Z ...    optional atomic numbers: make only these elements (default: all 87)
+        Z ...    optional atomic numbers: make only these elements (default: all 92)
         particle = p (proton), d (deuteron), t (triton), h (helium-3) or a (alpha): ISOTOPIA's
                    symbols (constants.f90 line 45)
 
 Writes <output folder>/<particle>/<particle>_in_<Symbol>.txt (e.g. p/p_in_Ni.txt) and the exact
 SRIM input used, <particle>/inputs/<particle>_in_<Symbol>.SR.IN.
 
-Elements: the 84 with a CIAAW standard atomic weight (Z = 1-83 except Tc and Pm, plus Th, Pa, U),
-Tc (Z = 43; target mass Tc-98, the longest-lived isotope in the ISOTOPIA decay library),
-and At (Z = 85) and Fr (Z = 87), whose densities are estimates (Arblaster 2018) and whose target
-mass is the longest-lived isotope in the ISOTOPIA decay library (At-210, Fr-223).
+Elements: all 92 from H to U, the targets SRIM accepts. For the 84 with a CIAAW standard atomic
+weight the target mass is that weight. For Tc, Pm, Po, At, Rn, Fr, Ra and Ac (no stable isotope)
+it is the longest-lived isotope in the ISOTOPIA decay library. At and Fr densities are
+estimates (Arblaster 2018).
 Per element, from the default row of element_data.csv:
   target mass = mass_u (CIAAW standard atomic weight; abridged value where CIAAW gives an interval)
   density     = density_g_cm3 (25 degC; gases at 101.325 kPa)
@@ -37,7 +37,7 @@ ION = {
     "a": (2, "4.00260293529"),
 }
 EMIN_KEV, EMAX_KEV, UNITS = 1, 250000, 7
-NATURAL = [z for z in range(1, 93) if z not in (61, 84, 86, 88, 89)]   # includes Tc (43), At (85) and Fr (87)
+NATURAL = list(range(1, 93))   # every element SRIM takes as a target, H to U
 
 par, CSV, SRDIR, OUT = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4])
 ONLY = [int(z) for z in sys.argv[5:]] or NATURAL

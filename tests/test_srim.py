@@ -20,8 +20,8 @@ def _sheet(z):
 
 
 def test_index_covers_the_natural_elements():
-    # the 84 elements with a standard atomic weight, Tc, and At and Fr (estimated densities)
-    natural = [z for z in range(1, 93) if z not in (61, 84, 86, 88, 89)]
+    # every element SRIM can take as a target: H to U (Z = 1-92)
+    natural = list(range(1, 93))
     assert sorted(INDEX) == natural
 
 
@@ -95,8 +95,8 @@ def test_energy_outside_table_is_an_error(E):
 
 
 def test_unavailable_tables_are_errors():
-    with pytest.raises(FileNotFoundError, match="no SRIM table for p in Pm"):
-        srim.load_table("p", 61)
+    with pytest.raises(FileNotFoundError, match="no SRIM table for p in Np"):
+        srim.load_table("p", 93)
     with pytest.raises(ValueError, match="no SRIM tables for projectile 'n'"):
         srim.load_table("n", 28)
 

@@ -59,6 +59,7 @@
 58,Ce,Cerium,,solid,solid,6.770,140.116,p/p_in_Ce.txt,d/d_in_Ce.txt,t/t_in_Ce.txt,h/h_in_Ce.txt,a/a_in_Ce.txt,
 59,Pr,Praseodymium,,solid,solid,6.77,140.90766,p/p_in_Pr.txt,d/d_in_Pr.txt,t/t_in_Pr.txt,h/h_in_Pr.txt,a/a_in_Pr.txt,
 60,Nd,Neodymium,,solid,solid,7.01,144.242,p/p_in_Nd.txt,d/d_in_Nd.txt,t/t_in_Nd.txt,h/h_in_Nd.txt,a/a_in_Nd.txt,
+61,Pm,Promethium,,solid,solid,7.26,144.913,p/p_in_Pm.txt,d/d_in_Pm.txt,t/t_in_Pm.txt,h/h_in_Pm.txt,a/a_in_Pm.txt,"no stable isotope: target mass is Pm-145, the longest-lived isotope in ISOTOPIA's decay library"
 62,Sm,Samarium,,solid,solid,7.52,150.36,p/p_in_Sm.txt,d/d_in_Sm.txt,t/t_in_Sm.txt,h/h_in_Sm.txt,a/a_in_Sm.txt,
 63,Eu,Europium,,solid,solid,5.24,151.964,p/p_in_Eu.txt,d/d_in_Eu.txt,t/t_in_Eu.txt,h/h_in_Eu.txt,a/a_in_Eu.txt,
 64,Gd,Gadolinium,,solid,solid,7.90,157.249,p/p_in_Gd.txt,d/d_in_Gd.txt,t/t_in_Gd.txt,h/h_in_Gd.txt,a/a_in_Gd.txt,
@@ -81,8 +82,12 @@
 81,Tl,Thallium,,solid,solid,11.8,204.38,p/p_in_Tl.txt,d/d_in_Tl.txt,t/t_in_Tl.txt,h/h_in_Tl.txt,a/a_in_Tl.txt,
 82,Pb,Lead,,solid,solid,11.3,207.2,p/p_in_Pb.txt,d/d_in_Pb.txt,t/t_in_Pb.txt,h/h_in_Pb.txt,a/a_in_Pb.txt,
 83,Bi,Bismuth,,solid,solid,9.79,208.9804,p/p_in_Bi.txt,d/d_in_Bi.txt,t/t_in_Bi.txt,h/h_in_Bi.txt,a/a_in_Bi.txt,
+84,Po,Polonium,,solid,solid,9.20,208.982,p/p_in_Po.txt,d/d_in_Po.txt,t/t_in_Po.txt,h/h_in_Po.txt,a/a_in_Po.txt,"no stable isotope: target mass is Po-209, the longest-lived isotope in ISOTOPIA's decay library"
 85,At,Astatine,,solid,solid,8.95,209.987,p/p_in_At.txt,d/d_in_At.txt,t/t_in_At.txt,h/h_in_At.txt,a/a_in_At.txt,"NOT CONFIRMED AT 25 °C: room temperature, an estimate (Arblaster 2018); no bulk astatine has been made; target mass is At-210, the longest-lived isotope in ISOTOPIA's decay library; SRIM stopping for this element is not backed by measurements"
+86,Rn,Radon,,gas,gas,0.009074,222.0172,p/p_in_Rn.txt,d/d_in_Rn.txt,t/t_in_Rn.txt,h/h_in_Rn.txt,a/a_in_Rn.txt,"no stable isotope: target mass is Rn-222, the longest-lived isotope in ISOTOPIA's decay library"
 87,Fr,Francium,,solid,solid,2.458,223.020,p/p_in_Fr.txt,d/d_in_Fr.txt,t/t_in_Fr.txt,h/h_in_Fr.txt,a/a_in_Fr.txt,"NOT CONFIRMED AT 25 °C: room temperature, an estimate (Arblaster 2018); no bulk francium has been made; target mass is Fr-223, the longest-lived isotope in ISOTOPIA's decay library; SRIM stopping for this element is not backed by measurements"
+88,Ra,Radium,,solid,solid,5,226.026,p/p_in_Ra.txt,d/d_in_Ra.txt,t/t_in_Ra.txt,h/h_in_Ra.txt,a/a_in_Ra.txt,"no stable isotope: target mass is Ra-226, the longest-lived isotope in ISOTOPIA's decay library; density from the CRC to 1 significant figure"
+89,Ac,Actinium,,solid,solid,10,227.027,p/p_in_Ac.txt,d/d_in_Ac.txt,t/t_in_Ac.txt,h/h_in_Ac.txt,a/a_in_Ac.txt,"no stable isotope: target mass is Ac-227, the longest-lived isotope in ISOTOPIA's decay library; density from the CRC to 1 significant figure"
 90,Th,Thorium,,solid,solid,11.7,232.0377,p/p_in_Th.txt,d/d_in_Th.txt,t/t_in_Th.txt,h/h_in_Th.txt,a/a_in_Th.txt,
 91,Pa,Protactinium,,solid,solid,15.4,231.03588,p/p_in_Pa.txt,d/d_in_Pa.txt,t/t_in_Pa.txt,h/h_in_Pa.txt,a/a_in_Pa.txt,
 92,U,Uranium,,solid,solid,19.1,238.02891,p/p_in_U.txt,d/d_in_U.txt,t/t_in_U.txt,h/h_in_U.txt,a/a_in_U.txt,

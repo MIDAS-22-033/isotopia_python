@@ -102,12 +102,12 @@ def test_default_is_srim_where_a_table_exists():
     "lines,what",
     [
         (
-            ("projectile h", "element Pm", "mass 145", "Ebeam 16.", "Eback 12."),
-            "h in Pm",
+            ("projectile h", "element Np", "mass 237", "Ebeam 16.", "Eback 12."),
+            "h in Np",
         ),
         (
-            ("projectile p", "element Pm", "mass 145", "Ebeam 16.", "Eback 12."),
-            "p in Pm",
+            ("projectile p", "element Np", "mass 237", "Ebeam 16.", "Eback 12."),
+            "p in Np",
         ),
     ],
 )
