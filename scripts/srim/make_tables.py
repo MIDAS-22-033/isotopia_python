@@ -1,7 +1,7 @@
-"""Make SRIM stopping tables for ISOTOPIA projectiles in 86 elements.
+"""Make SRIM stopping tables for ISOTOPIA projectiles in 87 elements.
 
 Usage:  python scripts/srim/make_tables.py <particle> element_data.csv "<SRIM folder>/SR Module" <output folder> [Z ...]
-        Z ...    optional atomic numbers: make only these elements (default: all 86)
+        Z ...    optional atomic numbers: make only these elements (default: all 87)
         particle = p (proton), d (deuteron), t (triton), h (helium-3) or a (alpha): ISOTOPIA's
                    symbols (constants.f90 line 45)
 
@@ -9,6 +9,7 @@ Writes <output folder>/<particle>/<particle>_in_<Symbol>.txt (e.g. p/p_in_Ni.txt
 SRIM input used, <particle>/inputs/<particle>_in_<Symbol>.SR.IN.
 
 Elements: the 84 with a CIAAW standard atomic weight (Z = 1-83 except Tc and Pm, plus Th, Pa, U),
+Tc (Z = 43; target mass Tc-98, the longest-lived isotope in the ISOTOPIA decay library),
 and At (Z = 85) and Fr (Z = 87), whose densities are estimates (Arblaster 2018) and whose target
 mass is the longest-lived isotope in the ISOTOPIA decay library (At-210, Fr-223).
 Per element, from the default row of element_data.csv:
@@ -36,7 +37,7 @@ ION = {
     "a": (2, "4.00260293529"),
 }
 EMIN_KEV, EMAX_KEV, UNITS = 1, 250000, 7
-NATURAL = [z for z in range(1, 93) if z not in (43, 61, 84, 86, 88, 89)]   # includes At (85) and Fr (87)
+NATURAL = [z for z in range(1, 93) if z not in (61, 84, 86, 88, 89)]   # includes Tc (43), At (85) and Fr (87)
 
 par, CSV, SRDIR, OUT = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4])
 ONLY = [int(z) for z in sys.argv[5:]] or NATURAL

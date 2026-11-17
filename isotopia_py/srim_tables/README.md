@@ -15,10 +15,13 @@ non-commercial terms and not covered by the MIT licence; see `NOTICE`.
 
 ## Elements
 
-86 elements:
+87 elements:
 
 - The 84 with a CIAAW standard atomic weight: Z = 1–83 except Tc and Pm, plus Th, Pa and U
   (CRC 107th ed., Section 1, *Standard Atomic Weights*, footnote u).
+- **Tc.** No stable isotope. Density 11 g/cm³ at 25 °C from the CRC (2 significant figures);
+  target mass of Tc-98 (97.9072 u), the longest-lived isotope in ISOTOPIA's decay library. Above
+  10 MeV its stopping per atom divided by Z lies between Mo and Ru, as expected.
 - **At and Fr.** Their densities are estimates at "room temperature" (25 °C is not stated),
   Arblaster, *Selected Values of the Crystallographic Properties of the Elements*, ASM
   International (2018): At 8.95 g/cm³, Fr 2.458 g/cm³. Their target masses are those of the
@@ -83,7 +86,7 @@ on density. Range and straggling depend on SRIM's density and are not used.
   element.
 - **Velocity scaling:** ions of the same charge at the same velocity have the same electronic
   stopping. The d and t tables at energy E × m/m_p agree with the p table at E, and He-3 with
-  the alpha table the same way, to 0.38% or better from 10 keV to 80 MeV in all 86 elements
+  the alpha table the same way, to 0.38% or better from 10 keV to 80 MeV in all 87 elements
   (`tests/test_srim.py`). Nuclear stopping depends on the ion mass and does not scale this way.
 - **Interpolation:** `isotopia_py.srim` interpolates linearly in log E and log S. As a test, I
   dropped each table row in turn and predicted it from its neighbours, which doubles the

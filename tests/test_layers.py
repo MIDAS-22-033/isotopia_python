@@ -322,8 +322,8 @@ def test_each_reached_layer_is_run_as_a_natural_target(monkeypatch, tmp_path):
         ((*MO100, "Ebeam 18.", "layer 1 Al -0.1", "layer 2 target"), "0 < thickness"),
         ((*MO100, "Ebeam 18.", "layer 1 Al 0.1 500.", "layer 2 target"), "0 < density"),
         (
-            (*MO100, "Ebeam 18.", "layer 1 Tc 0.01", "layer 2 target"),
-            "layer 1: no SRIM table for p in Tc",
+            (*MO100, "Ebeam 18.", "layer 1 Pm 0.01", "layer 2 target"),
+            "layer 1: no SRIM table for p in Pm",
         ),
         (
             (*MO100, "Ebeam 18.", "layer 1 Fm 0.01", "layer 2 target"),
@@ -336,9 +336,9 @@ def test_each_reached_layer_is_run_as_a_natural_target(monkeypatch, tmp_path):
                 "mass 100",
                 "Ebeam 18.",
                 "layer 1 target",
-                "layer 2 Tc 0.01",
+                "layer 2 Pm 0.01",
             ),
-            "layer 2: no SRIM table for d in Tc",
+            "layer 2: no SRIM table for d in Pm",
         ),
     ],
 )

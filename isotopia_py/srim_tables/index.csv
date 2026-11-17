@@ -41,6 +41,7 @@
 40,Zr,Zirconium,,solid,solid,6.52,91.222,p/p_in_Zr.txt,d/d_in_Zr.txt,t/t_in_Zr.txt,h/h_in_Zr.txt,a/a_in_Zr.txt,
 41,Nb,Niobium,,solid,solid,8.57,92.90637,p/p_in_Nb.txt,d/d_in_Nb.txt,t/t_in_Nb.txt,h/h_in_Nb.txt,a/a_in_Nb.txt,
 42,Mo,Molybdenum,,solid,solid,10.2,95.95,p/p_in_Mo.txt,d/d_in_Mo.txt,t/t_in_Mo.txt,h/h_in_Mo.txt,a/a_in_Mo.txt,
+43,Tc,Technetium,,solid,solid,11,97.9072,p/p_in_Tc.txt,d/d_in_Tc.txt,t/t_in_Tc.txt,h/h_in_Tc.txt,a/a_in_Tc.txt,"no stable isotope: target mass is Tc-98, the longest-lived isotope in ISOTOPIA's decay library; density from the CRC to 2 significant figures"
 44,Ru,Ruthenium,,solid,solid,12.1,101.07,p/p_in_Ru.txt,d/d_in_Ru.txt,t/t_in_Ru.txt,h/h_in_Ru.txt,a/a_in_Ru.txt,
 45,Rh,Rhodium,,solid,solid,12.4,102.90549,p/p_in_Rh.txt,d/d_in_Rh.txt,t/t_in_Rh.txt,h/h_in_Rh.txt,a/a_in_Rh.txt,
 46,Pd,Palladium,,solid,solid,12.0,106.42,p/p_in_Pd.txt,d/d_in_Pd.txt,t/t_in_Pd.txt,h/h_in_Pd.txt,a/a_in_Pd.txt,
