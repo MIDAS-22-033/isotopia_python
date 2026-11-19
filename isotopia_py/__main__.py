@@ -17,6 +17,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="isotopia_py", description=__doc__)
     parser.add_argument("input", nargs="?", help="input file (default: standard input)")
     parser.add_argument("-o", "--outdir", default=".", help="directory for output files")
+    parser.add_argument("--fortran-defaults", action="store_true",
+                        help="use the Fortran's density table and Bethe-Bloch stopping power")
     args = parser.parse_args(argv)
     if args.input:
         with open(args.input, encoding="utf-8") as fh:
@@ -24,7 +26,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         lines = sys.stdin.read().splitlines()
     try:
-        run(lines, outdir=args.outdir)
+        run(lines, outdir=args.outdir, fortran_defaults=args.fortran_defaults)
     except IsotopiaError as exc:
         sys.stdout.flush()
         print(str(exc))

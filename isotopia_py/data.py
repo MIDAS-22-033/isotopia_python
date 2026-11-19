@@ -201,6 +201,33 @@ def _residual_exists(st: State, csfile: str) -> bool:
     return name in listing
 
 
+def _positive_in_window(E, xs, Eback, Ebeam) -> bool:
+    """True if the interpolated cross section is positive somewhere between Eback and Ebeam.
+
+    The Fortran (crosssections.f90 line 203) keeps a product only if a *tabulated* energy
+    with a positive cross section lies in [Eback, Ebeam]. A thin target can lose less energy
+    than the spacing of the table (0.2 to 5 MeV), so its window can hold no tabulated energy
+    at all and every such product was dropped, although the reaction-rate integral
+    (reactionrates.f90 lines 246-252) interpolates linearly between the tabulated energies
+    and would give a positive rate. This test uses the same linear interpolation: the cross
+    section is positive somewhere in the window if a table interval that overlaps the window
+    has a positive value at either end.
+
+    Parameters
+    ----------
+    E, xs : sequence of float
+        Tabulated energies [MeV], increasing, and cross sections [mb].
+    Eback, Ebeam : float
+        Energies leaving and entering the target [MeV].
+
+    Returns
+    -------
+    bool
+    """
+    return any(E[j] < Ebeam and E[j + 1] > Eback and (xs[j] > 0 or xs[j + 1] > 0)
+               for j in range(len(E) - 1))
+
+
 def crosssections(st: State, iz: int, ia: int, is_: int) -> None:
     """Read residual production, total and non-elastic cross sections."""
     k0 = st.k0
@@ -293,6 +320,9 @@ def crosssections(st: State, iz: int, ia: int, is_: int) -> None:
     finally:
         if copy:
             copy.close()
+    # Not in the Fortran: a window that falls between two tabulated energies (a thin target).
+    if k0 > 1 and not flagpositive and not st.fortran_defaults:
+        flagpositive = _positive_in_window(Elist, xslist, st.Eback, st.Ebeam)
     st.Ein = _padded(Elist)
     st.xsrp = _padded(xslist)
     key = (iz, ia, is_)
