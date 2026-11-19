@@ -19,6 +19,7 @@ from isotopia_py.daughters import (
     RateGrid,
     Window,
     _keep_inside,
+    burnup_file,
     check_rate_grid,
     hit_reactions,
     rate_grid,
@@ -44,6 +45,17 @@ def test_rate_grid_sum_and_range():
     sigma[2] = 30.0 + (3.0 - 2.5) / (4.0 - 2.5) * 20.0
     assert grid.rate(E, xs) == pytest.approx(1e10 * np.dot(grid.weights, sigma) * 1e-27, rel=1e-14)
     assert grid.rate([5.0, 6.0], [1.0, 1.0]) == 0.0
+
+
+def test_burnup_file_follows_isotopia():
+    """MT001 (total) for neutrons with self-shielding, MT003 without, MT005 otherwise."""
+    from types import SimpleNamespace
+    st = SimpleNamespace(k0=1, flagselfshield=True, crosspath="/libs/", libname="iaea.2026")
+    assert burnup_file(st, (71, 177, 0)) == "/libs/n/Lu177/iaea.2026/tables/xs/n-Lu177-MT001.iaea.2026"
+    st.flagselfshield = False
+    assert burnup_file(st, (71, 177, 0)).endswith("n-Lu177-MT003.iaea.2026")
+    st.k0 = 2
+    assert burnup_file(st, (47, 110, 1)) == "/libs/p/Ag110m/iaea.2026/tables/xs/p-Ag110m-MT005.iaea.2026"
 
 
 def test_window():
@@ -190,3 +202,23 @@ def test_mo100_target_and_window_bin(tmp_path, monkeypatch):
     np.testing.assert_allclose(hits[irr.target], exact, rtol=1e-10)
     assert hits[OUTSIDE][st.Ntime] > 0
     assert reactions[irr.target].loss == irr.burnup
+
+
+@needs_samples
+@pytest.mark.skipif(not (LIBS / "n" / "Lu177" / "iaea.2026").is_dir(),
+                    reason="needs the library folder n/Lu177")
+def test_neutron_daughter_burnup_is_total_cross_section(tmp_path, monkeypatch):
+    """A hit neutron daughter depletes at its total cross section, like ISOTOPIA's target."""
+    from isotopia_py.data import _read_xs_table
+    found = []
+    run_sample_capturing("n-Lu176-Lu177", tmp_path, monkeypatch, found.append)
+    st = found[0]
+    irr = Irradiation.from_state(st)
+    reactions, warnings = hit_reactions(st, irr, Window(2, 2, 1, 1))
+    lu177 = (71, 177, 0)
+    total = rate_grid(st).rate(*_read_xs_table(burnup_file(st, lu177)))
+    assert burnup_file(st, lu177).endswith("-MT001.iaea.2026")
+    assert reactions[lu177].loss == pytest.approx(total, rel=1e-12)
+    assert reactions[lu177].loss >= sum(reactions[lu177].products.values())
+    # The library's Yb-177 ground and isomer files add up to more than its total file.
+    assert any("Isomer-state files" in w and "Yb176 -> Yb177" in w for w in warnings)

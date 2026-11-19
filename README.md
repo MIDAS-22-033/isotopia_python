@@ -130,8 +130,9 @@ inv[(43, 98, 0)]               # Tc-98, made only by second hits at 12-16 MeV
 inv[(0, 0, 0)]                 # atoms that left the window ("outside_window")
 ```
 
-Hit nuclides deplete at their non-elastic rate, as ISOTOPIA does for the
-target. The library has unstable nuclides as targets only if they live about
+Hit nuclides deplete the way ISOTOPIA actually depletes the target: at the
+non-elastic rate for charged particles and photons, and at the total cross
+section (elastic included) for neutrons with self-shielding. The library has unstable nuclides as targets only if they live about
 a day or longer; shorter-lived ones are not hit, and a warning lists them.
 Assumptions and limits are in the `daughters.py` docstring.
 

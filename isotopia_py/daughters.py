@@ -31,12 +31,16 @@ Physics assumptions (MIDAS Status Update, slide 40):
 * Rates are averaged over the target depth, as for the target in ISOTOPIA.
   A daughter is made mostly where its production cross section peaks, so its
   real second-hit rate can differ from the depth-averaged one. Not yet checked.
-* Burnup of each hit nuclide is its non-elastic rate (team decision,
-  19 Nov 2026), as ISOTOPIA does for the target. Reactions that leave the
-  nuclide unchanged are not products. Where the product rates do not add up
-  to the non-elastic rate, atoms are gained or lost; a warning says how much.
-  For neutrons the library's non-elastic file (MT003) leaves out capture at
-  thermal energies, so a hit nuclide can make more atoms than it loses.
+* Burnup of each hit nuclide follows what ISOTOPIA actually does for the
+  target (team decision, 19 Nov 2026; see ``burnup_file``): the non-elastic
+  cross section (MT005) for charged particles and photons, and for neutrons
+  the total cross section (MT001), elastic scattering included, or MT003
+  without self-shielding. ISOTOPIA's comments say non-elastic for neutrons
+  too, but its file reread (reactionrates.f90 lines 233-236; crosssections.f90
+  lines 86-89) leaves the total in place. Reactions that leave the nuclide
+  unchanged (inelastic, and for neutrons also elastic, scattering) count as
+  burnup but are not products, so atoms leave the bookkeeping while a nuclide
+  is hit; a warning says how much.
 * Rates are constant during irradiation; nothing is hit during cooling.
 
 The network window
@@ -71,7 +75,7 @@ from .rates import _read_neutron_spectrum, _read_photon_spectrum, stoppingpower
 # Tolerance of the check that the rebuilt weights reproduce the port's rates. The
 # port sums in float32 (relative precision 6e-8 per term), the rebuild in float64.
 GRID_RTOL = 1e-5
-# Report product rates that differ from the non-elastic rate by more than this.
+# Report product rates that differ from the burnup rate by more than this.
 BALANCE_TOL = 1e-3
 
 _STATE_LETTER = {"": None, "g": 0, "m": 1, "n": 2}
@@ -187,18 +191,30 @@ def tables_dir(st, nuclide: Nuclide) -> str:
     return f"{st.crosspath.rstrip()}{PARSYM[st.k0]}/{_name(nuclide)}/{st.libname}/tables/"
 
 
-def _nonelastic_file(st, nuclide: Nuclide) -> str:
-    mt = "MT003" if st.k0 == 1 else "MT005"   # data.py crosssections, typ 1
-    name = _name(nuclide)
-    return f"{tables_dir(st, nuclide)}xs/{PARSYM[st.k0]}-{name}-{mt}.{st.libname}"
+def burnup_file(st, nuclide: Nuclide) -> str:
+    """Cross-section file ISOTOPIA's R_T comes from, for ``nuclide`` as a target.
+
+    The last file data.py ``crosssections(0, 0, -1)`` reads before the rate is
+    summed (crosssections.f90 lines 82-89; reactionrates.f90 lines 233-236):
+    MT001 (total) for neutrons with self-shielding, MT003 for neutrons
+    without, MT005 (non-elastic) for every other projectile.
+    """
+    if st.k0 == 1:
+        mt = "MT001" if st.flagselfshield else "MT003"
+    else:
+        mt = "MT005"
+    return f"{tables_dir(st, nuclide)}xs/{PARSYM[st.k0]}-{_name(nuclide)}-{mt}.{st.libname}"
 
 
-def _residual_files(st, nuclide: Nuclide) -> dict[Nuclide, str]:
+def _residual_files(st, nuclide: Nuclide) -> tuple[dict[Nuclide, str], dict[tuple, str]]:
     """Residual-production files of a target, one per product state.
 
     Products with isomers have files per state (g, m, n) besides the total;
     the states are used, as ``Irradiation.from_state`` does. Products without
     isomers have only the total, which is their ground state.
+
+    Returns the files used per product state, and the total file of each
+    product that is split into states (to check that the states add up).
     """
     folder = tables_dir(st, nuclide) + "residual/"
     pattern = re.compile(rf"{PARSYM[st.k0]}-{_name(nuclide)}-rp(\d{{3}})(\d{{3}})([gmn]?)"
@@ -215,23 +231,35 @@ def _residual_files(st, nuclide: Nuclide) -> dict[Nuclide, str]:
     with_states = {(z, a) for z, a, _ in states}
     files = {k: v for k, v in totals.items() if k[:2] not in with_states}
     files.update(states)
-    return files
+    split_totals = {k[:2]: v for k, v in totals.items() if k[:2] in with_states}
+    return files, split_totals
 
 
 def _channel_rates(st, grid: RateGrid, nuclide: Nuclide):
-    """(non-elastic rate, product rates, rate back to the nuclide itself) [s^-1], or None."""
-    nonel = _nonelastic_file(st, nuclide)
-    if not os.path.isfile(nonel):
+    """Burnup, product and own rates [s^-1] of a nuclide, and isomer-file checks; or None.
+
+    Returns (burnup rate, product rates, rate back to the nuclide itself,
+    {(Z, A): sum of the state rates / rate of the total file}).
+    """
+    path = burnup_file(st, nuclide)
+    if not os.path.isfile(path):
         return None
-    loss = grid.rate(*_read_xs_table(nonel))
-    products, own = {}, 0.0
-    for product, path in _residual_files(st, nuclide).items():
+    loss = grid.rate(*_read_xs_table(path))
+    files, split_totals = _residual_files(st, nuclide)
+    products, own, by_za = {}, 0.0, {}
+    for product, path in files.items():
         rate = grid.rate(*_read_xs_table(path))
+        by_za[product[:2]] = by_za.get(product[:2], 0.0) + rate
         if product == nuclide:
             own = rate
         elif rate > 0.0:
             products[product] = rate
-    return loss, products, own
+    split = {}
+    for za, path in split_totals.items():
+        total = grid.rate(*_read_xs_table(path))
+        if total > 0:
+            split[za] = by_za.get(za, 0.0) / total
+    return loss, products, own, split
 
 
 def nuclide_reactions(st, grid: RateGrid, nuclide: Nuclide) -> Reactions | None:
@@ -249,7 +277,7 @@ def nuclide_reactions(st, grid: RateGrid, nuclide: Nuclide) -> Reactions | None:
     Returns
     -------
     Reactions or None
-        Non-elastic burnup rate and product rates [s^-1]; reactions that
+        Burnup rate (``burnup_file``) and product rates [s^-1]; reactions that
         leave the nuclide unchanged are not products. None if the library has
         no data for it as a target.
     """
@@ -261,9 +289,7 @@ def check_rate_grid(st, grid: RateGrid) -> None:
     """Confirm that the rebuilt weights reproduce every target rate of the port run.
 
     Checks R_T and each residual rate in ``st.reaction_rate`` to ``GRID_RTOL``.
-    R_T is recomputed from the last file the port read for it (data.py
-    crosssections): the total cross section (MT001) for neutrons with
-    self-shielding, the non-elastic one otherwise.
+    R_T is recomputed from ``burnup_file``, the file the port's R_T comes from.
 
     Raises
     ------
@@ -272,8 +298,7 @@ def check_rate_grid(st, grid: RateGrid) -> None:
     """
     target = (st.Ztarget, st.Atarget, 0)
     folder = tables_dir(st, target)
-    mt = "MT001" if st.k0 == 1 and st.flagselfshield else ("MT003" if st.k0 == 1 else "MT005")
-    checks = {(0, 0, -1): f"{folder}xs/{PARSYM[st.k0]}-{_name(target)}-{mt}.{st.libname}"}
+    checks = {(0, 0, -1): burnup_file(st, target)}
     for (z, a, is_), r in st.reaction_rate.items():
         if (z, a) != (0, 0) and r > 0 and not st.xsfile.get((z, a, is_), "").strip():
             letter = {-1: "", 0: "g", 1: "m", 2: "n"}[is_]
@@ -365,7 +390,7 @@ def hit_reactions(st, irr: Irradiation, window: Window,
     target = irr.target
     lost: dict[Nuclide, float] = {}
     reactions = {target: _keep_inside(Reactions(irr.burnup, irr.rates), target, window, lost)}
-    no_data, unbalanced = [], []
+    no_data, unbalanced, split_off = [], [], []
 
     # Breadth-first search over everything the target can turn into.
     queue = deque(reactions[target].products)
@@ -383,7 +408,8 @@ def hit_reactions(st, irr: Irradiation, window: Window,
         if rates is None:
             no_data.append(n)
             continue
-        loss, products, own = rates
+        loss, products, own, split = rates
+        split_off += [(n, za, f) for za, f in split.items() if abs(f - 1) > BALANCE_TOL]
         produced = sum(products.values())
         if loss > 0 and abs(produced / loss - 1) > BALANCE_TOL:
             unbalanced.append((n, produced / loss, own / loss))
@@ -403,14 +429,21 @@ def hit_reactions(st, irr: Irradiation, window: Window,
                         "'outside_window' (largest rate per product, s^-1): "
                         + ", ".join(f"{label(p)} {r:.2e}" for p, r in
                                     sorted(lost.items(), key=lambda x: -x[1])) + ".")
+    if split_off:
+        warnings.append("Isomer-state files that do not add up to the total file (the state "
+                        "files are used, as for the target, so atoms are gained or lost): "
+                        + ", ".join(f"{label(n)} -> {label((za[0], za[1], 0))} {f:.3g}"
+                                    for n, za, f in split_off) + ".")
     if unbalanced:
         ratios = [r for _, r, _ in unbalanced]
         warnings.append(f"For {len(unbalanced)} hit nuclide(s) the product rates are "
-                        f"{min(ratios):.3g} to {max(ratios):.3g} times the non-elastic rate "
-                        "(burnup), so atoms are not conserved while they are hit. Mostly "
-                        "reactions that leave the nuclide unchanged (e.g. inelastic "
-                        "scattering), counted in burnup but not as products; given as "
-                        "'own'. Per nuclide, products / non-elastic and own / non-elastic: "
+                        f"{min(ratios):.3g} to {max(ratios):.3g} times the burnup rate "
+                        "(as ISOTOPIA defines it for the target), so atoms are not conserved "
+                        "while they are hit. Mostly reactions that leave the nuclide "
+                        "unchanged (inelastic scattering; for neutrons also elastic), counted "
+                        "in burnup but not as products; above 1, see the isomer-file warning. "
+                        "Per nuclide, products / burnup and "
+                        "inelastic-to-itself / burnup ('own'): "
                         + ", ".join(f"{label(n)} {r:.3g} (own {o:.3g})"
                                     for n, r, o in unbalanced) + ".")
     return reactions, warnings
@@ -448,5 +481,5 @@ def irradiate_with_hits(st, window: Window, times=None, library: DecayLibrary | 
     return inv
 
 
-__all__ = ["RateGrid", "RateGridError", "Window", "check_rate_grid", "hit_reactions",
+__all__ = ["RateGrid", "RateGridError", "Window", "burnup_file", "check_rate_grid", "hit_reactions",
            "irradiate_with_hits", "nuclide_reactions", "rate_grid", "tables_dir"]
