@@ -1,0 +1,117 @@
+
+    ISOTOPIA-2.23   (Version: July 9, 2026)
+
+           Simulation of medical isotope production
+
+ Copyright (C) 2026  A.J. Koning
+
+ User: Arjan Koning
+ Date: 2026-10-25
+
+ ########## USER INPUT ##########
+
+ USER INPUT FILE
+
+ projectile a
+ element bi
+ mass 209
+ ebeam 28.
+ eback 10.
+ ibeam 0.100
+
+ USER INPUT FILE + DEFAULTS
+
+ Keyword           Value   Variable     Explanation
+
+ user      Arjan Koning    user         user for this calculation
+ source    ISOTOPIA        source       source for this calculation
+ format    YANDF-0.4       oformat      format for output
+ crosspath /home/natem297/nuclear/isotopia.libs/   crosspath    directory containing cross sections 
+ #
+ # Nuclear reaction
+ #
+ projectile          a     ptype0       type of incident particle
+ element            Bi     Starget      symbol of target nucleus
+ mass              209     Atarget      mass number of target nucleus
+ #
+ # Accelerator 
+ #
+ Ebeam              28.000 Ebeam        incident energy in MeV
+ Eback              10.000 Eback        lower end of energy range in MeV
+ Ibeam               0.100 Ibeam_input  beam current in mA
+ fgamma              0.300 fgamma       electron-to-photon conversion effiency
+ #
+ # Output 
+ #
+ radiounit             bq  radiounit    unit for radioactivity
+ yieldunit (massunit)  g   yieldunit    unit for isotope yield
+ ZAoutput              n   flagZAoutput output files per Z, A instead of El, A
+ #
+ # Target
+ #
+ Tirrad              1     Tirrad       d irradiation time
+ Area                1.000 Area         target area in cm^2
+ Tcool               1     Tcool        d cooling time
+ selfshield            y flagselfshield flag for self-shielding 
+ #
+ # Cross section and decay data
+ #
+ Zdepth             10     Zdepth       depth to which Z numbers are scanned for cross sections
+ Adepth             20     Adepth       depth to which A numbers are scanned for cross sections
+ decay               y     flagdecay    flag to include decay of nuclides (n only for diagnosis) 
+
+
+ Summary of isotope production for a + Bi209
+
+ Maximal irradiation time [s]:    8.640000E+04 (     0 years   1 days  0 hours  0 minutes  0 seconds)
+ Cooling time [s]:    8.640000E+04 (     0 years   1 days  0 hours  0 minutes  0 seconds)
+ E-beam [MeV]:   2.800000E+01
+ E-back [MeV]:   1.000000E+01
+ Beam current [mA]:        0.100
+ Target material density [g/cm^3]:   9.750000E+00
+ Target area [cm^2]:   1.000000E+00
+ Effective target thickness [cm]:   1.516906E-02
+ Effective target volume [cm^3]:   1.516906E-02
+ Effective target mass [g]:   1.478984E-01
+ Average energy of spectrum [MeV]:    1.985227E+01
+ Number of target atoms:    4.261554E+20
+ Number of incident particles [s^-1]:   3.120755E+14
+ Produced heat in target [kW]:   9.000000E-01
+
+ (Maximum) production and decay rates per isotope
+
+ Total production rate [s^-1]:   7.679529E-11
+
+#  Nuc       Activity     Spec_activity    Prod_rate      #Isotopes Isot_fraction  Reac_constant   Decay_constant            Half-life                      Time of maximum production
+#              [Bq]          [Bq/g]        [Bq/(mA.h)]        []            []        [s^-1]         [s^-1]       
+ At 212     4.571732E+09   3.091141E+10   9.524475E+10   1.219017E+09   0.00005   1.072789E-11   2.207475E+00                                                                            
+ At 212 g   1.543189E+09   1.043412E+10   3.214977E+10   6.990744E+08   0.00002   3.621190E-12   2.207475E+00          0 y   0 d   0 h   0 m   0 s           0 y   0 d   0 h   0 m  10 s 
+ At 212 m   3.028543E+09   2.047719E+10   6.309465E+10   5.199424E+08   0.00001   7.106664E-12   5.824766E+00          0 y   0 d   0 h   0 m   0 s           0 y   0 d   0 h   0 m   4 s 
+ At 211     2.195560E+10   1.484506E+11   2.289880E+10   8.226184E+14   1.00000   5.722317E-11   2.668989E-05          0 y   0 d   7 h  12 m  50 s           0 y   5 d  12 h  47 m  14 s 
+ Po 212     1.460060E+06   9.872051E+06   3.041792E+07   1.292613E+07   0.00000   3.426122E-15   2.325997E+06                                                                            
+ Po 212 g   1.261397E+06   8.528807E+06   2.627910E+07   5.423036E-01   0.00000   2.959946E-15   2.325997E+06          0 y   0 d   0 h   0 m   0 s           0 y   0 d   0 h   0 m   0 s 
+ Po 212 m   1.986632E+05   1.343242E+06   4.138818E+06   1.292613E+07   0.01191   4.661756E-16   1.536912E-02          0 y   0 d   0 h   0 m  45 s           0 y   0 d   0 h  20 m  43 s 
+ Po 211     3.359108E+05   2.271227E+06   6.998142E+06   1.067759E+06   0.00023   7.882356E-16   1.343309E+00                                                                            
+ Po 211 g   3.132249E+05   2.117838E+06   6.525518E+06   2.331742E+05   0.00021   7.350016E-16   1.343309E+00          0 y   0 d   0 h   0 m   0 s           0 y   0 d   0 h   0 m  17 s 
+ Po 211 m   2.268590E+04   1.533884E+05   4.726228E+05   8.345852E+05   0.00077   5.323387E-17   2.718224E-02          0 y   0 d   0 h   0 m  25 s           0 y   0 d   0 h  12 m   4 s 
+ Po 210     3.098211E+03   2.094824E+04   1.294096E+03   5.344374E+10   0.99973   1.455136E-15   5.797144E-08          0 y 138 d   9 h  18 m  20 s           3 y 229 d   0 h   9 m  44 s 
+ Bi 208     4.331546E-02   2.928731E-01   1.804817E-02   7.257205E+11   0.97935   1.971011E-14   5.968615E-14     368000 y  36 d   9 h  48 m  48 s        2956 y 237 d  12 h  16 m   0 s 
+ Bi 207     1.058317E+01   7.155702E+01   4.409796E+00   1.530248E+10   0.02065   4.156182E-16   6.915980E-10         31 y 277 d   6 h   0 m  32 s         113 y 102 d  23 h  19 m  28 s 
+ Pb 208     0.000000E+00   0.000000E+00   0.000000E+00   9.887624E+08   1.00000   2.685411E-17   0.000000E+00       stable                                infinite                       
+
+file: At212.act
+file: At212g.act
+file: At212m.act
+file: At211.act
+file: Po212.act
+file: Po212g.act
+file: Po212m.act
+file: Po211.act
+file: Po211g.act
+file: Po211m.act
+file: Po210.act
+file: Bi208.act
+file: Bi207.act
+file: Pb208.act
+
+  End of ISOTOPIA calculation for a + Bi209
