@@ -48,6 +48,25 @@ class Defaulted(dict):
 
 
 @dataclass
+class Layer:
+    """One layer of the stack other than the target, e.g. a capsule wall (not in the Fortran).
+
+    Given with the keyword 'layer'; the energies are filled in by rates.setup_stopping.
+    The target itself is not a Layer: State.target_layer holds its number in the stack.
+    """
+
+    number: int               # position along the beam: the beam crosses layer 1 first
+    Z: int                    # atomic number of the layer's element
+    thickness: float          # cm
+    rho: float = -1.0         # density, g/cm3; -1 = take constants.RHOTABLE (25 degC)
+    mass: float = 0.0         # atomic mass used for atoms per cm3, g/mol (CIAAW atomic weight)
+    E_in: float = 0.0         # mean energy entering the layer, MeV
+    E_out: float = 0.0        # mean energy leaving the layer, MeV; 0 = the beam stops in it
+    reach: float = 0.0        # depth at which the beam stops in the layer, cm (0 if it crosses)
+    reached: bool = True      # False if the beam stopped before this layer
+
+
+@dataclass
 class State:
     out: TextIO = field(default_factory=lambda: sys.stdout)
     outdir: str = "."
@@ -104,6 +123,21 @@ class State:
     targetmass: np.float32 = S(0)
     targetmass_input: np.float32 = S(-1)
     fluxtotal: np.float32 = S(1e14)
+
+    # Stopping power and thickness input (not in the Fortran; see rates.setup_stopping)
+    fortran_defaults: bool = False        # use the Fortran's density table and Bethe-Bloch
+    stopping: str = ""                    # keyword 'stopping': "srim", "bethe" or "" (default)
+    stopping_model: str = "bethe"         # model actually used: "srim" or "bethe"
+    thickness_given: bool = False         # 'thickness' was given in the input
+    Amolar: np.float32 = S(0)             # molar mass for atoms per cm3 [g/mol]; 0 = use Atarget
+    range_table: object = None            # energyloss.RangeTable of the target, or None
+
+    # Layers in front of and behind the target (not in the Fortran; keyword 'layer')
+    layers: list[Layer] = field(default_factory=list)   # capsule layers, in input order
+    target_layer: int = 0                 # number of the layer that is the target (0: no layers)
+    Ebeam_incident: np.float32 = S(-1)    # beam energy before the front layers [MeV]
+    beam_stops: bool = False              # the beam stops inside the target
+
     timeunit: str = "h"
     radiounit: str = "bq"
     yieldunit: str = "g"
@@ -188,3 +222,13 @@ class State:
     def write(self, line: str = "") -> None:
         """Write one record to standard output (Fortran unit *)."""
         self.out.write(line + "\n")
+
+    def molar_mass(self) -> np.float32:
+        """Molar mass used to count atoms per cm3 and target atoms [g/mol].
+
+        The Fortran uses the mass number of the isotope being run (reactionrates.f90
+        line 202, equations.f90 line 86). rates.setup_stopping keeps that for the
+        Fortran's own configuration and sets the abundance-weighted mass number for a
+        natural target otherwise, so that all its isotopes share one material.
+        """
+        return self.Amolar if self.Amolar > 0 else S(self.Atarget)
