@@ -50,8 +50,14 @@ class DecayDataError(LookupError):
     """Required decay data is missing from the library."""
 
 
+# Bin for atoms that leave the network window (see daughters.py); not a real nuclide.
+OUTSIDE: Nuclide = (0, 0, 0)
+
+
 def label(nuclide: Nuclide) -> str:
     """Display name of a nuclide key, e.g. (43, 99, 1) -> 'Tc99_m1'."""
+    if tuple(nuclide) == OUTSIDE:
+        return "outside_window"
     z, a, i = nuclide
     name = f"{nuc(z).strip() if z > 0 else 'n'}{a}"
     return name if i == 0 else f"{name}_m{i}"
