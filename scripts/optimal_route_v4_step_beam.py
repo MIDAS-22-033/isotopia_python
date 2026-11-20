@@ -15,8 +15,9 @@ Outputs (in --out, default runs/optimal_route/<DI>):
     summary.txt  assumptions, best route per target, overall best, warnings
 
 How each projectile is treated
-    p, d, t, h, a  Ebeam scanned on the grid; Eback follows from a fixed target
-                   thickness (see `EbackSolver`).
+    p, d, t, h, a  Ebeam scanned on the grid; the target thickness is passed to
+                   ISOTOPIA (keyword 'thickness'), which solves Eback with its own
+                   stopping-power model (SRIM by default, see isotopia_py.rates).
     g              Electron energy scanned, but ISOTOPIA only has bremsstrahlung
                    spectra for integer 1-200 MeV, so the grid is reduced to
                    distinct integer energies >= 1 MeV.
@@ -50,15 +51,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
-from scipy.integrate import cumulative_trapezoid
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from isotopia_py.constants import AVOGADRO, NUC, NUMTIME, PARA, PARMASS, PARSYM, PARZ, RHOTABLE, nuc  # noqa: E402
+from isotopia_py.constants import AVOGADRO, NUC, NUMTIME, PARA, PARMASS, PARSYM, PARZ, nuc  # noqa: E402
 from isotopia_py.fortran import endf_float  # noqa: E402
 from isotopia_py.inputdeck import machine  # noqa: E402
-from isotopia_py.rates import stoppingpower  # noqa: E402
 from isotopia_py.run import run  # noqa: E402
 from isotopia_py.state import IsotopiaError, State  # noqa: E402
 
@@ -405,53 +404,6 @@ def rarity_weight(r_target: float, r_di: float) -> tuple[float, float]:
 
 
 # ----------------------------------------------------------------------------
-# Eback from target thickness (charged particles)
-# ----------------------------------------------------------------------------
-
-class EbackSolver:
-    """Exit energy of a charged beam after a fixed target thickness.
-
-    The beam loses energy as dE/dx = -S(E), with S the code's own Bethe-Bloch
-    stopping power (rates.stoppingpower, manual Sec. 4). The path length to
-    slow from Ebeam to Eback is
-
-        L(Ebeam, Eback) = integral_{Eback}^{Ebeam} dE / S(E)      [cm]
-
-    which is the same quantity ISOTOPIA reports as Leff. With the residual
-    range R(E) = integral_{E_floor}^{E} dE'/S(E'), the exit energy for a
-    thickness d is Eback = R^-1(R(Ebeam) - d).
-
-    The Bethe-Bloch formula is only valid above its maximum; below it the
-    formula falls to zero and then goes negative (unphysical). E_floor is
-    therefore set to the energy of the maximum of S(E). If the beam's range
-    is shorter than d, the beam stops in the target and Eback = E_floor.
-    """
-
-    def __init__(self, k0: int, Z: int, A: int, emax: float = 250.0, npts: int = 4000):
-        st = State()
-        st.k0, st.Ztarget, st.Atarget = k0, Z, A
-        st.rho_target = RHOTABLE[Z - 1]         # ISOTOPIA default density (reacinitial.f90)
-        # Locate the stopping-power maximum on a fine log grid, 1 keV to emax
-        E = np.geomspace(1e-3, emax, npts)
-        with np.errstate(all="ignore"):
-            Sp = np.array([float(stoppingpower(st, e)) for e in E])
-        self.E_floor = float(E[np.nanargmax(Sp)])
-        # Residual range R(E) above the floor (cumulative trapezoid of 1/S)
-        self.E = E[E >= self.E_floor]
-        self.R = cumulative_trapezoid(1.0 / Sp[E >= self.E_floor], self.E, initial=0.0)
-
-    def eback(self, ebeam: float, thickness: float) -> tuple[float, bool]:
-        """Exit energy (MeV) for beam energy `ebeam` (MeV) and `thickness` (cm).
-
-        Returns (Eback, stopped); stopped is True if the beam stops in the target.
-        """
-        r_back = np.interp(ebeam, self.E, self.R) - thickness
-        if r_back <= 0.0:
-            return self.E_floor, True
-        return float(np.interp(r_back, self.R, self.E)), False
-
-
-# ----------------------------------------------------------------------------
 # One ISOTOPIA run
 # ----------------------------------------------------------------------------
 
@@ -462,7 +414,7 @@ class RunSpec:
     k0: int
     target: Target
     ebeam: float | None          # MeV; None for neutrons
-    eback: float | None          # MeV; charged particles only
+    eback: float | None          # MeV; filled from the run (charged particles), None before
     lines: list[str]
     exclude: set[Nuclide] = field(default_factory=set)
     molar_mass: float = 0.0      # g/mol of the DI, from molar_mass()
@@ -494,6 +446,21 @@ def precursors(st: State, di: Nuclide) -> list[tuple[int, int, int]]:
     return found
 
 
+BEAM_STOPS = "beam stops in the target"
+
+
+def stop_note(st: State) -> str:
+    """Note for a run whose beam stops inside the target, else "".
+
+    With the 'thickness' input ISOTOPIA (rates._setup_target) then sets Eback to the
+    lowest stopping-table energy and counts only the depth the beam reaches (Leff [cm])
+    as the irradiated target.
+    """
+    if st.k0 > 1 and getattr(st, "beam_stops", False):
+        return f"{BEAM_STOPS} after {float(st.Leff):.4g} cm; only that depth is irradiated"
+    return ""
+
+
 def run_one(spec: RunSpec) -> dict:
     """Run isotopia_py once and extract the DI masses; never raises."""
     t = spec.target
@@ -507,8 +474,8 @@ def run_one(spec: RunSpec) -> dict:
     except (IsotopiaError, OSError, ValueError) as exc:
         row.update(status="error", note=" ".join(str(exc).split()))
         return row
-    if spec.k0 > 1:
-        row["Leff_cm"] = float(st.Leff)
+    if spec.k0 > 1:                                   # Eback solved by ISOTOPIA from the thickness
+        row.update(Eback_MeV=float(st.Eback), Leff_cm=float(st.Leff), note=stop_note(st))
 
     # Exclusion: precursors that feed the DI in this run
     for pkey in precursors(st, spec.di):
@@ -558,9 +525,8 @@ def energy_grid(emin: float, emax: float, de: float) -> np.ndarray:
 def base_lines(t: Target, k0: int, args) -> list[str]:
     """ISOTOPIA input keywords shared by every run on this target (manual Sec. 6)."""
     lines = [f"projectile {PARSYM[k0]}", f"element {nuc(t.Z).strip()}", f"mass {t.A}",
-             f"Ibeam {args.ibeam}", f"Tirrad {args.tirrad}", f"Tcool {args.tcool}"]
-    if k0 <= 1:
-        lines.append(f"thickness {args.thickness}")
+             f"Ibeam {args.ibeam}", f"Tirrad {args.tirrad}", f"Tcool {args.tcool}",
+             f"thickness {args.thickness}"]     # charged particles: ISOTOPIA solves Eback from it
     if k0 == 1 and args.flux is not None:
         lines.append(f"fluxtotal {args.flux}")
     return lines
@@ -583,25 +549,10 @@ def build_specs(di: Nuclide, k0: int, targets: list[Target], grid: np.ndarray,
         elif k0 == 0:                                 # photons: integer spectra 1..200 MeV
             for e in sorted({int(e) for e in grid if e >= 1.0}):
                 specs.append(RunSpec(di, k0, t, float(e), None, lines + [f"Ebeam {e}."], exclude))
-        else:                                         # charged particles: Eback from thickness
-            solver = EbackSolver(k0, t.Z, t.A)
-            n_low = n_stop = 0
-            for e in grid:
-                if e <= solver.E_floor:
-                    n_low += 1
-                    continue
-                eback, stopped = solver.eback(float(e), args.thickness)
-                n_stop += stopped
-                if eback >= e:
-                    continue
-                specs.append(RunSpec(di, k0, t, float(e), eback,
-                                     lines + [f"Ebeam {e:.6f}", f"Eback {eback:.6f}"], exclude))
-            if n_low:
-                warnings.append(f"{p}+{t.name}: {n_low} energies <= {solver.E_floor:.3f} MeV skipped "
-                                "(below the Bethe-Bloch maximum; stopping power invalid)")
-            if n_stop:
-                warnings.append(f"{p}+{t.name}: beam stops in the {args.thickness} cm target at "
-                                f"{n_stop} energies; Eback clipped to {solver.E_floor:.3f} MeV")
+        else:                                         # charged particles: Ebeam only; ISOTOPIA
+            for e in grid:                            # solves Eback from the thickness
+                specs.append(RunSpec(di, k0, t, float(e), None,
+                                     lines + [f"Ebeam {e:.6f}"], exclude))
     if k0 == 1:
         warnings.append("n: reactor spectrum does not depend on Ebeam; one run per target, no energy scan")
     if k0 == 0:
@@ -890,7 +841,8 @@ def run_rates(spec: RunSpec) -> dict:
         out.update(status="error", note=" ".join(str(exc).split()))
         return out
     P, P_T = production_states(st, (t.Z, t.A, 0))
-    out.update(P=P, P_T=P_T, N0=float(st.N_0), Leff=float(st.Leff), t_irr=float(st.Tir), t_cool=float(st.Tco))
+    out.update(P=P, P_T=P_T, N0=float(st.N_0), Leff=float(st.Leff), t_irr=float(st.Tir), t_cool=float(st.Tco),
+               Eback=float(st.Eback), note=stop_note(st))
     return out
 
 
@@ -907,6 +859,8 @@ def run_step_search(args, di: StateKey, di_name: str, M_di: float, specs: list[R
         if r["status"] != "ok":
             warnings.append(f"{PARSYM[spec.k0]}+{r['target']} at {r['Ebeam']} MeV: {r['note']}")
             continue
+        if r["note"]:
+            warnings.append(f"{PARSYM[spec.k0]}+{r['target']} at {r['Ebeam']} MeV: {r['note']}")
         by_target.setdefault((PARSYM[spec.k0], r["target"]), []).append(r)
     decay = DecayLibrary(path)
     rarity = RarityIndex(args.rarity) if args.rarity else None
@@ -1015,7 +969,7 @@ Assumptions and limitations (step beam)
   uses ISOTOPIA's one-step beta feeding, so the two can disagree for DIs fed by
   decay (the step-beam numbers are the more physical ones).
 - Reaction rates from ISOTOPIA at the grid energies, linear in between; Eback of
-  every step from the fixed target thickness; beam current constant.
+  every step solved by ISOTOPIA from the fixed target thickness; beam current constant.
 - Total irradiation time fixed; only switch times and step energies vary.
 - Products are not hit again by the beam (no double hitting); target burnup is
   spread uniformly over the target.
@@ -1071,9 +1025,12 @@ Assumptions and limitations
 - Targets: mass number A_DI-5..A_DI+5, ground state, with a cross-section library;
   only Z and A inside ISOTOPIA's residual window (Zcomp+1 .. Zcomp-Zdepth,
   Acomp .. Acomp-Adepth); lighter targets need A + A_projectile >= A_DI.
-- Charged particles: Eback from a fixed thickness using ISOTOPIA's Bethe-Bloch
-  stopping power and default density; Leff_cm is the path length ISOTOPIA itself
-  computed (100-bin midpoint rule) and may differ slightly from the thickness.
+- Charged particles: the thickness is passed to ISOTOPIA ('thickness' keyword),
+  which solves Eback with its own stopping-power model: SRIM tables where they
+  exist, otherwise Bethe-Bloch with a warning (isotopia_py.rates._setup_target),
+  and the 25 degC density table. Eback_MeV and Leff_cm are ISOTOPIA's values. If
+  the beam stops in the target, Eback is the lowest table energy, only the depth
+  the beam reaches (Leff_cm) is irradiated, and the run is listed under Warnings.
 - Decay physics is the Phase 1 port of equations.f90, including its known defects
   (claude/equations_f90_findings.md): beta- parents do NOT feed daughters during
   cooling, no branching ratios, double-counted parent feeding, no isomeric
@@ -1293,7 +1250,7 @@ def main(argv=None) -> int:
     else:
         rows += [run_one(s) for s in specs]
     for r in rows:
-        if r["status"] == "error":
+        if r["status"] == "error" or r.get("note", "").startswith(BEAM_STOPS):
             warnings.append(f"{r['projectile']}+{r['target']} at {r.get('Ebeam_MeV')} MeV: {r['note']}")
     if args.rarity:
         apply_rarity(rows, di, RarityIndex(args.rarity), args.rarity_basis, METRICS[args.metric][0], warnings)

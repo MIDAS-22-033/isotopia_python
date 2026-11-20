@@ -282,30 +282,6 @@ def test_decay_library_parses_modes(tmp_path):
     assert lib.get((42, 101, 0)) is None
 
 
-# ---------------------------------------------------------------- Eback solver
-
-def test_eback_analytic(monkeypatch):
-    """With S(E) = k/E the range integral is (Ebeam^2 - Eback^2) / (2k), so
-    Eback = sqrt(Ebeam^2 - 2 k d) exactly."""
-    k = 200.0                                         # MeV^2 / cm
-    monkeypatch.setattr(opt, "stoppingpower", lambda st, E: np.float32(k / E))
-    solver = opt.EbackSolver(2, 42, 100, npts=20000)
-    for ebeam, d in ((20.0, 0.05), (50.0, 1.0), (100.0, 5.0)):
-        eback, stopped = solver.eback(ebeam, d)
-        assert not stopped
-        assert eback == pytest.approx(np.sqrt(ebeam**2 - 2 * k * d), rel=1e-4)
-    # Range shorter than the target: beam stops, Eback clipped to the floor
-    eback, stopped = solver.eback(5.0, 10.0)
-    assert stopped and eback == solver.E_floor
-
-
-def test_eback_floor_is_stopping_power_maximum():
-    """The real Bethe-Bloch floor for protons on Mo sits near 0.5 MeV and S > 0 above it."""
-    solver = opt.EbackSolver(2, 42, 100)
-    assert 0.1 < solver.E_floor < 1.0
-    assert np.all(np.diff(solver.R) > 0)              # range increases monotonically
-
-
 # ---------------------------------------------------------------- with the library
 
 ISOTOPIA = Path(os.environ.get("ISOTOPIA_DIR") or ROOT.parent / "isotopia")
@@ -318,9 +294,10 @@ def _paths():
     return st
 
 
-def _proton_lines(sym, A, ebeam, eback):
+def _proton_lines(sym, A, ebeam, thickness=0.05):
+    """Optimizer-style input: ISOTOPIA solves Eback from the thickness [cm]."""
     return ["projectile p", f"element {sym}", f"mass {A}", "Ibeam 1", "Tirrad 1 d", "Tcool 1 d",
-            f"Ebeam {ebeam}", f"Eback {eback:.6f}"]
+            f"Ebeam {ebeam}", f"thickness {thickness}"]
 
 
 @needs_lib
@@ -330,19 +307,18 @@ def test_mo100_route_mass_and_precursor_exclusion(tmp_path):
     route; ISOTOPIA's own Leff must match the requested thickness."""
     paths = _paths()
     t = opt.Target(42, 100, True)
-    eback, _ = opt.EbackSolver(2, 42, 100).eback(20.0, 0.05)
-    lines = _proton_lines("Mo", 100, 20.0, eback)
+    lines = _proton_lines("Mo", 100, 20.0)
     di = (43, 99, 1)
     M = opt.molar_mass(paths.path, 43, 99)
     assert abs(M - 99) / 99 < 0.01                    # sanity: close to the mass number
-    row = opt.run_one(opt.RunSpec(di, 2, t, 20.0, eback, lines, molar_mass=M))
+    row = opt.run_one(opt.RunSpec(di, 2, t, 20.0, None, lines, molar_mass=M))
     assert row["status"] == "ok" and row["m_EOC_g"] > 0
     assert row["Leff_cm"] == pytest.approx(0.05, rel=1e-3)
     st = opt.run(lines, out=io.StringIO(), outdir=str(tmp_path))
     key = (43, 99, 1)
     N_eoc = float(st.activity[key][opt.NUMTIME]) / float(st.lam[key])
     assert row["m_EOC_g"] == pytest.approx(N_eoc * M / float(opt.AVOGADRO), rel=1e-5)
-    row = opt.run_one(opt.RunSpec(di, 2, t, 20.0, eback, lines, {(42, 99, None)}, M))
+    row = opt.run_one(opt.RunSpec(di, 2, t, 20.0, None, lines, {(42, 99, None)}, M))
     assert row["status"] == "excluded" and "Mo99" in row["note"]
 
 
@@ -365,8 +341,7 @@ def test_step_solver_matches_isotopia_for_unfed_products(tmp_path):
     ISOTOPIA's inventory at EOI (same production, burnup and decay; float32 in
     ISOTOPIA). Checks every such product of p + Mo-100 at 20 MeV."""
     paths = _paths()
-    eback, _ = opt.EbackSolver(2, 42, 100).eback(20.0, 0.05)
-    lines = _proton_lines("Mo", 100, 20.0, eback)
+    lines = _proton_lines("Mo", 100, 20.0)
     st = opt.run(lines, out=io.StringIO(), outdir=str(tmp_path))
     target = (42, 100, 0)
     P, P_T = opt.production_states(st, target)
@@ -395,13 +370,25 @@ def test_stable_di_mass(tmp_path):
     Tolerance 5%: beta+ feeding from Rh-100 adds a small second-order term."""
     paths = _paths()
     t = opt.Target(44, 101, True)
-    eback, _ = opt.EbackSolver(2, 44, 101).eback(30.0, 0.05)
-    lines = _proton_lines("Ru", 101, 30.0, eback)
+    lines = _proton_lines("Ru", 101, 30.0)
     M = opt.molar_mass(paths.path, 44, 100)
-    row = opt.run_one(opt.RunSpec((44, 100, 0), 2, t, 30.0, eback, lines, molar_mass=M))
+    row = opt.run_one(opt.RunSpec((44, 100, 0), 2, t, 30.0, None, lines, molar_mass=M))
     assert row["status"] == "ok" and row["m_EOI_g"] > 0
     assert row["m_EOC_g"] >= row["m_EOI_g"] * (1 - 1e-6)
     st = opt.run(lines, out=io.StringIO(), outdir=str(tmp_path))
     key = opt.di_key(st, (44, 100, 0))
     direct = float(st.N_0) * float(st.reaction_rate[key]) * M / float(opt.AVOGADRO)   # g/s
     assert row["m_rate"] == pytest.approx(direct * 3600 / (float(st.Ibeam) * 1e3), rel=0.05)
+
+
+@needs_lib
+def test_beam_that_stops_in_the_target_is_flagged():
+    """p + Mo-100 at 8 MeV stops well inside 0.05 cm. ISOTOPIA then irradiates only
+    the depth the beam reaches, so Leff < thickness, and the row carries the note
+    that main() turns into a warning."""
+    paths = _paths()
+    M = opt.molar_mass(paths.path, 43, 99)
+    row = opt.run_one(opt.RunSpec((43, 99, 1), 2, opt.Target(42, 100, True), 8.0, None,
+                                  _proton_lines("Mo", 100, 8.0), molar_mass=M))
+    assert row["status"] == "ok" and row["note"].startswith(opt.BEAM_STOPS)
+    assert 0 < row["Leff_cm"] < 0.05 and row["Eback_MeV"] < 8.0
