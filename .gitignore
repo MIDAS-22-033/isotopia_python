@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 /runs/
+# The cross-section library (about 5 GB) is downloaded, never committed
+/isotopia.libs/
+# Stand-alone copy of the SRIM tables; the code reads isotopia_py/srim_tables/
+/SRIM tables/

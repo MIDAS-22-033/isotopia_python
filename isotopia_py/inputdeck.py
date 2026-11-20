@@ -9,9 +9,10 @@ import os
 from pathlib import Path
 
 from . import data
-from .constants import NUMA, NUMISOM, NUMLINES, NUMZ, PARSYM, nuc
+from .constants import (NUMA, NUMISOM, NUMLINES, NUMZ, PARSYM, RHOTABLE, RHOTABLE_FORTRAN,
+                        STOPPING_MODELS, nuc)
 from .fortran import S, ReadError, a, es, f, i, read_char, read_int, read_real, tab
-from .state import IsotopiaError, State
+from .state import IsotopiaError, Layer, State
 
 LINELEN = 132
 
@@ -24,35 +25,69 @@ def _fortran_path(p: str) -> str:
 # machine.f90
 # ----------------------------------------------------------------------------
 
-def machine(st: State) -> None:
-    """Set data directories, date and user.
+# This repository: the folder that holds isotopia_py/, and, when it stands alone, files/ and
+# isotopia.libs/
+REPO = Path(__file__).resolve().parents[1]
 
-    As in the Fortran, ISOTOPIA_DIR points at the isotopia code directory and
-    the cross sections default to a sibling ``isotopia.libs``. The Python port
-    adds ISOTOPIA_LIBS to point at the library directly, and falls back to an
-    ``isotopia`` directory next to this repository when ISOTOPIA_DIR is unset.
+
+def data_directories() -> tuple[str, str]:
+    """Where the data are: the folder that holds ``files/`` and the cross-section library.
+
+    Not in the Fortran, which takes both from ISOTOPIA_DIR (machine.f90). Order of search:
+
+    Folder holding ``files/`` (abundance, decay, neutron_spectra, photon_spectra)
+      1. the environment variable ISOTOPIA_DIR, if set (as for the Fortran);
+      2. this repository, if it has ``files/abundance/z001`` (stand-alone layout);
+      3. a folder ``isotopia`` next to this repository (the Fortran code).
+
+    Cross-section library (``isotopia.libs``)
+      1. the environment variable ISOTOPIA_LIBS, if set;
+      2. ``isotopia.libs`` inside this repository, if it exists (stand-alone layout);
+      3. ``isotopia.libs`` next to the folder found above (as for the Fortran).
+
+    Returns
+    -------
+    (str, str)
+        The two folders, with forward slashes and no trailing slash. They are not checked
+        for existence here.
     """
     code_dir = os.environ.get("ISOTOPIA_DIR", "")
     if not code_dir:
-        guess = Path(__file__).resolve().parents[2] / "isotopia"
-        code_dir = str(guess) if guess.is_dir() else "/path/to/isotopia/"
+        if (REPO / "files" / "abundance" / "z001").is_file():
+            code_dir = str(REPO)
+        else:
+            guess = REPO.parent / "isotopia"
+            code_dir = str(guess) if guess.is_dir() else "/path/to/isotopia/"
     code_dir = _fortran_path(code_dir)
     if len(code_dir) > 1 and code_dir.endswith("/"):
         code_dir = code_dir[:-1]
-    k = code_dir.rfind("/")
-    base_dir = code_dir[:k + 1] if k >= 0 else "./"
-    st.path = code_dir + "/"
-    st.crosspath = base_dir + "isotopia.libs/"
     libs = os.environ.get("ISOTOPIA_LIBS", "")
-    if libs:
-        libs = _fortran_path(libs)
-        st.crosspath = libs if libs.endswith("/") else libs + "/"
+    if not libs and (REPO / "isotopia.libs").is_dir():
+        libs = str(REPO / "isotopia.libs")
+    if not libs:
+        k = code_dir.rfind("/")
+        libs = (code_dir[:k + 1] if k >= 0 else "./") + "isotopia.libs"
+    libs = _fortran_path(libs)
+    return code_dir, libs[:-1] if len(libs) > 1 and libs.endswith("/") else libs
+
+
+def machine(st: State) -> None:
+    """Set data directories, date and user.
+
+    The data folders come from ``data_directories``: environment variables as for the
+    Fortran, else ``files/`` and ``isotopia.libs/`` inside this repository, else the
+    Fortran's layout of sibling folders.
+    """
+    code_dir, libs = data_directories()
+    st.path = code_dir + "/"
+    st.crosspath = libs + "/"
     st.libname = "iaea.2026"
     if not os.path.exists(st.path + "files/abundance/z001"):
         raise IsotopiaError(
             "ISOTOPIA error: data files not found.\n"
             f"Expected file: {st.path}files/abundance/z001\n"
-            "Set the ISOTOPIA_DIR environment variable to the isotopia directory.")
+            "Put the 'files' folder of ISOTOPIA in this repository, or set the ISOTOPIA_DIR"
+            " environment variable to the isotopia directory.")
     st.iso = 1
     st.natstring = ["    "] * len(st.natstring)
     st.isonum = 1
@@ -135,6 +170,10 @@ def read_keywords(st: State) -> None:
     st.Area = S(1)
     st.fgamma = S(0.3)
     st.thickness = S(0.05)
+    st.thickness_given = False
+    st.stopping = ""
+    st.layers = []
+    st.target_layer = 0
     st.Tirrad = [0] * 6
     st.unitTirrad = [" "] * 6
     st.Tcool = [0] * 6
@@ -168,7 +207,11 @@ def read_keywords(st: State) -> None:
             elif key == "element":
                 if "0" <= ch <= "9":
                     st.Ztarget = read_int(val, st.Ztarget)
-                    if st.Ztarget < 1 or st.Ztarget > NUMZ:
+                    if st.Ztarget > NUMZ:
+                        raise IsotopiaError(
+                            f" ISOTOPIA-error: element Z = {st.Ztarget}: Z must be <= {NUMZ}"
+                            " (no element beyond oganesson has been made)")
+                    if st.Ztarget < 1:
                         raise _read_error(line)
                     st.Starget = nuc(st.Ztarget)
                 else:
@@ -190,6 +233,30 @@ def read_keywords(st: State) -> None:
                 st.Area = real(val, st.Area)
             elif key == "thickness":
                 st.thickness = real(val, st.thickness)
+                st.thickness_given = True
+            elif key == "stopping":
+                st.stopping = read_char(val, 8, st.stopping)
+            elif key == "layer":
+                # Not in the Fortran:  layer <n> <element> <thickness in cm> [density]
+                #                 or:  layer <n> target
+                # n is the position along the beam (the beam crosses layer 1 first). The
+                # element is a symbol or Z, as for 'element'; -1 marks "not recognised".
+                number = read_int(val)
+                elem = word[3]
+                if elem.strip() == "target":
+                    if st.target_layer:
+                        raise IsotopiaError(
+                            " ISOTOPIA-error: the target is given twice in the layers")
+                    st.target_layer = number
+                    continue
+                if "0" <= elem[:1] <= "9":
+                    z = read_int(elem)
+                else:
+                    symbol = elem[:1].upper() + elem[1:2].ljust(1)
+                    z = next((iz for iz in range(1, NUMZ + 1) if nuc(iz) == symbol), -1)
+                rho = float(read_real(word[5], -1.0)) if word[5].strip() else -1.0
+                st.layers.append(Layer(number=number, Z=z, thickness=float(read_real(word[4])),
+                                       rho=rho))
             elif key == "fgamma":
                 st.fgamma = real(val, st.fgamma)
             elif key == "timeunit":
@@ -268,7 +335,8 @@ def read_keywords(st: State) -> None:
 _KEYWORDS = {
     "", "abundance", "adepth", "area", "crosspath", "currentunit", "decay", "eback", "ebeam",
     "element", "fgamma", "fluxtotal", "format", "ibeam", "mass", "massunit", "outcross",
-    "projectile", "radiounit", "rho", "selfshield", "source", "targetmass", "thickness",
+    "layer", "projectile", "radiounit", "rho", "selfshield", "source", "stopping", "targetmass",
+    "thickness",
     "timeunit", "tirrad", "tcool", "user", "xsfile", "yieldunit", "zaoutput", "zdepth",
 }
 
@@ -318,8 +386,16 @@ def checkvalue(st: State) -> None:
             stop("incident energy must be given")
         if st.Ebeam <= 0 or st.Ebeam > 250:
             stop("0 < Ebeam < 250 MeV")
-        if st.k0 > 1:
-            if st.Eback == S(-1):
+        if st.k0 > 1 and st.thickness_given:
+            # Not in the Fortran: the target is defined by its thickness, and Eback is
+            # solved from it in rates.setup_stopping once the density is known.
+            if st.Eback != S(-1):
+                stop("give either Eback or thickness for a charged-particle target, not both")
+        elif st.k0 > 1:
+            if st.Eback == S(-1) and any(layer.number < st.target_layer for layer in st.layers):
+                pass   # the default depends on the energy left after the front layers:
+                #        rates.setup_stopping sets it
+            elif st.Eback == S(-1):
                 st.Eback = max(st.Ebeam - S(5), S(0.1))
             elif st.Eback <= 0 or st.Eback > 250:
                 stop("0 < Eback < 250 MeV")
@@ -349,6 +425,34 @@ def checkvalue(st: State) -> None:
             stop(f"wrong unit for Tcool = {i(st.Tcool[k], 9)}")
     if st.rho_target != S(-1) and (st.rho_target <= 0 or st.rho_target > 100):
         stop("0 < rhotarget <= 100.")
+    if st.stopping not in ("",) + STOPPING_MODELS:
+        stop("stopping must be equal to " + " or ".join(STOPPING_MODELS))
+    # Not in the Fortran: the stack of numbered layers, one of which is the target
+    if (st.layers or st.target_layer) and st.k0 <= 1:
+        stop("layers are for charged-particle beams (projectile p or a), not for neutrons or photons")
+    if st.layers and not st.target_layer:
+        stop("say which layer is the target, e.g. 'layer 2 target'")
+    numbers = sorted([layer.number for layer in st.layers] + [st.target_layer] * bool(st.target_layer))
+    if numbers != list(range(1, len(numbers) + 1)):
+        stop("layers must be numbered 1, 2, 3, ... along the beam, each number once;"
+             f" the input has {', '.join(str(n) for n in numbers)}")
+    for layer in st.layers:
+        n = layer.number
+        if not 1 <= layer.Z <= NUMZ:
+            stop(f"layer {n}: wrong element")
+        if layer.thickness <= 0 or layer.thickness > 10000:
+            stop(f"layer {n}: 0 < thickness <= 10000 cm")
+        if layer.rho == -1.0:
+            if RHOTABLE[layer.Z - 1] is None:
+                stop(f"layer {n}: no verified density for {nuc(layer.Z).strip()};"
+                     " give its density in g/cm^3 after the thickness")
+            layer.rho = float(RHOTABLE[layer.Z - 1])
+        elif layer.rho <= 0 or layer.rho > 100:
+            stop(f"layer {n}: 0 < density <= 100 g/cm^3")
+    rhotable = RHOTABLE_FORTRAN if st.fortran_defaults else RHOTABLE
+    if st.rho_target == S(-1) and rhotable[st.Ztarget - 1] is None:
+        stop(f"no verified density for {st.Starget.strip()} (Z = {st.Ztarget});"
+             " give the target density in g/cm^3 with the keyword rho")
     if st.targetmass_input != S(-1) and (st.targetmass_input <= 0 or st.targetmass_input > S(1e9)):
         stop("0 < targetmass <= 1.e9")
     if st.fluxtotal <= 0 or st.fluxtotal > S(1e38):
@@ -462,9 +566,22 @@ def inputout(st: State) -> None:
         w(" # Accelerator ")
         w(" #")
         w(" Ebeam             " + f(st.Ebeam, 7, 3) + " Ebeam        incident energy in MeV")
-        if st.k0 > 1:
+        if st.k0 > 1 and st.thickness_given:
+            w(" thickness   " + es(st.thickness, 13, 6) + " thickness    target thickness in cm"
+              " (Eback is calculated from it)")
+        elif st.k0 > 1:
             w(" Eback             " + f(st.Eback, 7, 3) + " Eback        lower end of energy range in MeV")
+        if st.k0 > 1 and st.stopping:
+            w(" stopping          " + a(st.stopping, 7) + " stopping     stopping power model")
         w(" Ibeam             " + f(st.Ibeam_input, 7, 3) + " Ibeam_input  beam current in " + st.cstr.rstrip())
+        for n in range(1, len(st.layers) + 2 if st.target_layer else 1):
+            if n == st.target_layer:
+                w(" layer " + i(n, 2) + " target              layers       the target is layer "
+                  + str(n) + " along the beam")
+                continue
+            layer = next(la for la in st.layers if la.number == n)
+            w(" layer " + i(n, 2) + " " + a(nuc(layer.Z), 2) + es(layer.thickness, 13, 6)
+              + "    layers       thickness in cm; density" + es(layer.rho, 13, 6) + " g/cm^3")
     w(" fgamma            " + f(st.fgamma, 7, 3) + " fgamma       electron-to-photon conversion effiency")
     w(" #")
     w(" # Output ")
