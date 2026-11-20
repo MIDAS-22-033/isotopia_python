@@ -461,11 +461,36 @@ def stop_note(st: State) -> str:
     return ""
 
 
+def stopping_warnings(rows: list[dict]) -> list[str]:
+    """One warning per projectile + target whose runs used the Bethe-Bloch fallback.
+
+    ISOTOPIA (rates._setup_target) uses SRIM tables where they exist (p, d, t, h, a in
+    Z = 1-92) and otherwise Bethe-Bloch, writing a warning to its own output, which the
+    optimizer does not keep. This brings that warning into summary.txt.
+
+    Parameters
+    ----------
+    rows : list of dict
+        Rows from run_one or run_rates; each carries "stopping" ("srim", "bethe" or None),
+        "projectile" and "target".
+
+    Returns
+    -------
+    list of str
+        Warnings, in the order the targets first appear.
+    """
+    bethe = dict.fromkeys((r["projectile"], r["target"]) for r in rows if r.get("stopping") == "bethe")
+    return [f"{p}+{t}: no SRIM stopping table (SRIM covers H to U, Z = 1-92); Eback and Leff "
+            "come from the Bethe-Bloch formula, which is not valid below the energy of "
+            "its maximum (it depends on projectile and target), so runs where the beam would stop in the target fail"
+            for p, t in bethe]
+
+
 def run_one(spec: RunSpec) -> dict:
     """Run isotopia_py once and extract the DI masses; never raises."""
     t = spec.target
     row = {"projectile": PARSYM[spec.k0], "target": t.name, "stable": t.stable,
-           "Ebeam_MeV": spec.ebeam, "Eback_MeV": spec.eback, "Leff_cm": None,
+           "Ebeam_MeV": spec.ebeam, "Eback_MeV": spec.eback, "Leff_cm": None, "stopping": None,
            "m_rate": None, "m_rate_unit": rate_unit(spec.k0),
            "m_EOI_g": None, "m_EOC_g": None, "status": "ok", "note": ""}
     try:
@@ -475,7 +500,8 @@ def run_one(spec: RunSpec) -> dict:
         row.update(status="error", note=" ".join(str(exc).split()))
         return row
     if spec.k0 > 1:                                   # Eback solved by ISOTOPIA from the thickness
-        row.update(Eback_MeV=float(st.Eback), Leff_cm=float(st.Leff), note=stop_note(st))
+        row.update(Eback_MeV=float(st.Eback), Leff_cm=float(st.Leff), stopping=st.stopping_model,
+                   note=stop_note(st))
 
     # Exclusion: precursors that feed the DI in this run
     for pkey in precursors(st, spec.di):
@@ -833,7 +859,8 @@ def optimise_steps(prob: StepProblem, n_steps: int, metric: str, seed: int = 0) 
 def run_rates(spec: RunSpec) -> dict:
     """One ISOTOPIA run at one energy, returning production rates by state (picklable); never raises."""
     t = spec.target
-    out = {"target": t.name, "Ebeam": spec.ebeam, "Eback": spec.eback, "status": "ok", "note": ""}
+    out = {"projectile": PARSYM[spec.k0], "target": t.name, "Ebeam": spec.ebeam, "Eback": spec.eback,
+           "stopping": None, "status": "ok", "note": ""}
     try:
         with tempfile.TemporaryDirectory() as tmp:
             st = run(spec.lines, out=io.StringIO(), outdir=tmp)
@@ -842,7 +869,8 @@ def run_rates(spec: RunSpec) -> dict:
         return out
     P, P_T = production_states(st, (t.Z, t.A, 0))
     out.update(P=P, P_T=P_T, N0=float(st.N_0), Leff=float(st.Leff), t_irr=float(st.Tir), t_cool=float(st.Tco),
-               Eback=float(st.Eback), note=stop_note(st))
+               Eback=float(st.Eback), note=stop_note(st),
+               stopping=st.stopping_model if spec.k0 > 1 else None)
     return out
 
 
@@ -862,6 +890,7 @@ def run_step_search(args, di: StateKey, di_name: str, M_di: float, specs: list[R
         if r["note"]:
             warnings.append(f"{PARSYM[spec.k0]}+{r['target']} at {r['Ebeam']} MeV: {r['note']}")
         by_target.setdefault((PARSYM[spec.k0], r["target"]), []).append(r)
+    warnings.extend(stopping_warnings(results))
     decay = DecayLibrary(path)
     rarity = RarityIndex(args.rarity) if args.rarity else None
     r_di = rarity.lookup(*di, args.rarity_basis) if rarity else None
@@ -998,7 +1027,7 @@ def library_emin(crosspath: str, k0: int, t: Target) -> float | None:
 # Output
 # ----------------------------------------------------------------------------
 
-CSV_FIELDS = ["projectile", "target", "stable", "Ebeam_MeV", "Eback_MeV", "Leff_cm",
+CSV_FIELDS = ["projectile", "target", "stable", "Ebeam_MeV", "Eback_MeV", "Leff_cm", "stopping",
               "m_rate", "m_rate_unit", "m_EOI_g", "m_EOC_g",
               "R_target", "R_DI", "delta_R", "rarity_weight", "score", "rarity_flags", "status", "note"]
 
@@ -1027,10 +1056,14 @@ Assumptions and limitations
   Acomp .. Acomp-Adepth); lighter targets need A + A_projectile >= A_DI.
 - Charged particles: the thickness is passed to ISOTOPIA ('thickness' keyword),
   which solves Eback with its own stopping-power model: SRIM tables where they
-  exist, otherwise Bethe-Bloch with a warning (isotopia_py.rates._setup_target),
-  and the 25 degC density table. Eback_MeV and Leff_cm are ISOTOPIA's values. If
-  the beam stops in the target, Eback is the lowest table energy, only the depth
-  the beam reaches (Leff_cm) is irradiated, and the run is listed under Warnings.
+  exist (p, d, t, h, a in H to U, Z = 1-92), otherwise Bethe-Bloch
+  (isotopia_py.rates._setup_target), and the 25 degC density table. The model
+  used is in the 'stopping' column, and every target on Bethe-Bloch is listed
+  under Warnings. Eback_MeV and Leff_cm are ISOTOPIA's values. If the beam stops
+  in the target, SRIM runs set Eback to the lowest table energy and irradiate
+  only the depth the beam reaches (Leff_cm); Bethe-Bloch runs fail instead,
+  because the formula is not valid at those energies. Both are listed under
+  Warnings.
 - Decay physics is the Phase 1 port of equations.f90, including its known defects
   (claude/equations_f90_findings.md): beta- parents do NOT feed daughters during
   cooling, no branching ratios, double-counted parent feeding, no isomeric
@@ -1252,6 +1285,7 @@ def main(argv=None) -> int:
     for r in rows:
         if r["status"] == "error" or r.get("note", "").startswith(BEAM_STOPS):
             warnings.append(f"{r['projectile']}+{r['target']} at {r.get('Ebeam_MeV')} MeV: {r['note']}")
+    warnings.extend(stopping_warnings(rows))
     if args.rarity:
         apply_rarity(rows, di, RarityIndex(args.rarity), args.rarity_basis, METRICS[args.metric][0], warnings)
 

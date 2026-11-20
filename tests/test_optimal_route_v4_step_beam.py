@@ -314,6 +314,7 @@ def test_mo100_route_mass_and_precursor_exclusion(tmp_path):
     row = opt.run_one(opt.RunSpec(di, 2, t, 20.0, None, lines, molar_mass=M))
     assert row["status"] == "ok" and row["m_EOC_g"] > 0
     assert row["Leff_cm"] == pytest.approx(0.05, rel=1e-3)
+    assert row["stopping"] == "srim"                  # Mo (Z = 42) has a SRIM table
     st = opt.run(lines, out=io.StringIO(), outdir=str(tmp_path))
     key = (43, 99, 1)
     N_eoc = float(st.activity[key][opt.NUMTIME]) / float(st.lam[key])
@@ -392,3 +393,46 @@ def test_beam_that_stops_in_the_target_is_flagged():
                                   _proton_lines("Mo", 100, 8.0), molar_mass=M))
     assert row["status"] == "ok" and row["note"].startswith(opt.BEAM_STOPS)
     assert 0 < row["Leff_cm"] < 0.05 and row["Eback_MeV"] < 8.0
+
+
+# ---------------------------------------------------------------- stopping-power fallback
+
+def test_stopping_warnings_one_per_bethe_target():
+    """Only targets that ran on Bethe-Bloch are warned about, once each, in order."""
+    rows = [{"projectile": "p", "target": "Np237", "stopping": "bethe"},
+            {"projectile": "p", "target": "Mo100", "stopping": "srim"},
+            {"projectile": "p", "target": "Np237", "stopping": "bethe"},
+            {"projectile": "a", "target": "Np237", "stopping": "bethe"},
+            {"projectile": "n", "target": "Mo100", "stopping": None},
+            {"projectile": "p", "target": "U238", "status": "error"}]   # failed run: no model
+    w = opt.stopping_warnings(rows)
+    assert len(w) == 2 and w[0].startswith("p+Np237:") and w[1].startswith("a+Np237:")
+    assert all("Bethe-Bloch" in x for x in w)
+
+
+@needs_lib
+def test_target_above_uranium_falls_back_to_bethe_bloch():
+    """Np (Z = 93) has no SRIM table, so ISOTOPIA solves Eback with Bethe-Bloch. The
+    run must still honour the requested thickness, record the model, and be warned
+    about. Check value: Leff equals the requested 0.05 cm, as in the SRIM test above."""
+    paths = _paths()
+    M = opt.molar_mass(paths.path, 94, 237)
+    row = opt.run_one(opt.RunSpec((94, 237, 0), 2, opt.Target(93, 237, False), 30.0, None,
+                                  _proton_lines("Np", 237, 30.0), molar_mass=M))
+    assert row["status"] in ("ok", "not_produced"), row["note"]
+    assert row["stopping"] == "bethe"
+    assert row["Leff_cm"] == pytest.approx(0.05, rel=1e-3)
+    assert 0 < row["Eback_MeV"] < 30.0
+    assert opt.stopping_warnings([row])[0].startswith("p+Np237:")
+
+
+@needs_lib
+def test_bethe_bloch_beam_that_stops_is_an_error():
+    """With Bethe-Bloch a beam that would stop in the target cannot be followed (the
+    formula is not valid below its maximum), so the run fails with ISOTOPIA's message
+    rather than returning a silently wrong Eback. main() lists error rows under Warnings."""
+    paths = _paths()
+    M = opt.molar_mass(paths.path, 94, 237)
+    row = opt.run_one(opt.RunSpec((94, 237, 0), 2, opt.Target(93, 237, False), 8.0, None,
+                                  _proton_lines("Np", 237, 8.0), molar_mass=M))
+    assert row["status"] == "error" and "Bethe-Bloch" in row["note"]
