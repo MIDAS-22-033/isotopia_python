@@ -1,0 +1,124 @@
+z,a,isomer,symbol,element,form,hazard_score,hazard_class,radiological_score,chemical_score,hazard_index,radiological_index,chemical_index
+1,0,-1,H,Hydrogen,Element,7.0,5 – High,0.0,7.0,0.7,0.0,0.7
+1,2,0,H,Hydrogen,Deuterium,7.0,5 – High,0.0,7.0,0.7,0.0,0.7
+2,0,-1,He,Helium,Element,1.0,1 – Very low,0.0,1.0,0.1,0.0,0.1
+3,0,-1,Li,Lithium,Element,9.25,7 – Severe,0.0,9.25,0.925,0.0,0.925
+4,0,-1,Be,Beryllium,Element,5.6,4 – Elevated,0.0,5.6,0.56,0.0,0.56
+5,0,-1,B,Boron,Element,1.5,1 – Very low,0.0,1.5,0.15,0.0,0.15
+6,0,-1,C,Carbon,Element,1.0,1 – Very low,0.0,1.0,0.1,0.0,0.1
+7,0,-1,N,Nitrogen,Element,1.0,1 – Very low,0.0,1.0,0.1,0.0,0.1
+8,0,-1,O,Oxygen,Element,5.0,4 – Elevated,0.0,5.0,0.5,0.0,0.5
+9,0,-1,F,Fluorine,Element,10.0,7 – Severe,0.0,10.0,1.0,0.0,1.0
+10,0,-1,Ne,Neon,Element,1.0,1 – Very low,0.0,1.0,0.1,0.0,0.1
+11,0,-1,Na,Sodium,Element,9.75,7 – Severe,0.0,9.75,0.975,0.0,0.975
+12,0,-1,Mg,Magnesium,Element,2.7,2 – Low,0.0,2.7,0.27,0.0,0.27
+13,0,-1,Al,Aluminium,Element,2.7,2 – Low,0.0,2.7,0.27,0.0,0.27
+14,0,-1,Si,Silicon,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+15,0,-1,P,Phosphorus,Element,10.0,7 – Severe,0.0,10.0,1.0,0.0,1.0
+16,0,-1,S,Sulfur,Element,1.0,1 – Very low,0.0,1.0,0.1,0.0,0.1
+17,0,-1,Cl,Chlorine,Element,5.75,4 – Elevated,0.0,5.75,0.575,0.0,0.575
+18,0,-1,Ar,Argon,Element,1.0,1 – Very low,0.0,1.0,0.1,0.0,0.1
+19,0,-1,K,Potassium,Element,10.0,7 – Severe,0.0,10.0,1.0,0.0,1.0
+20,0,-1,Ca,Calcium,Element,6.0,4 – Elevated,0.0,6.0,0.6,0.0,0.6
+21,0,-1,Sc,Scandium,Element,1.2,1 – Very low,0.0,1.2,0.12,0.0,0.12
+22,0,-1,Ti,Titanium,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+23,0,-1,V,Vanadium,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+24,0,-1,Cr,Chromium,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+25,0,-1,Mn,Manganese,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+26,0,-1,Fe,Iron,Element,1.35,1 – Very low,0.0,1.35,0.135,0.0,0.135
+27,0,-1,Co,Cobalt,Element,5.08,4 – Elevated,0.0,5.08,0.508,0.0,0.508
+28,0,-1,Ni,Nickel,Element,4.08,3 – Moderate,0.0,4.08,0.408,0.0,0.408
+29,0,-1,Cu,Copper,Element,2.0,2 – Low,0.0,2.0,0.2,0.0,0.2
+30,0,-1,Zn,Zinc,Element,3.0,2 – Low,0.0,3.0,0.3,0.0,0.3
+31,0,-1,Ga,Gallium,Element,5.0,4 – Elevated,0.0,5.0,0.5,0.0,0.5
+32,0,-1,Ge,Germanium,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+33,0,-1,As,Arsenic,Element,3.3,2 – Low,0.0,3.3,0.33,0.0,0.33
+34,0,-1,Se,Selenium,Element,3.38,2 – Low,0.0,3.38,0.338,0.0,0.338
+35,0,-1,Br,Bromine,Element,5.3,4 – Elevated,0.0,5.3,0.53,0.0,0.53
+36,0,-1,Kr,Krypton,Element,1.0,1 – Very low,0.0,1.0,0.1,0.0,0.1
+37,0,-1,Rb,Rubidium,Element,10.0,7 – Severe,0.0,10.0,1.0,0.0,1.0
+38,0,-1,Sr,Strontium,Element,8.75,6 – Very high,0.0,8.75,0.875,0.0,0.875
+39,0,-1,Y,Yttrium,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+40,0,-1,Zr,Zirconium,Element,2.7,2 – Low,0.0,2.7,0.27,0.0,0.27
+41,0,-1,Nb,Niobium,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+42,0,-1,Mo,Molybdenum,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+43,0,-1,Tc,Technetium,Element (most stable/common isotope),2.25,2 – Low,2.25,,0.225,0.225,
+43,99,1,Tc,Technetium,Technetium-99m,3.43,2 – Low,3.43,,0.343,0.343,
+44,0,-1,Ru,Ruthenium,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+45,0,-1,Rh,Rhodium,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+46,0,-1,Pd,Palladium,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+47,0,-1,Ag,Silver,Element,3.3,2 – Low,0.0,3.3,0.33,0.0,0.33
+48,0,-1,Cd,Cadmium,Element,6.0,4 – Elevated,0.0,6.0,0.6,0.0,0.6
+49,0,-1,In,Indium,Element,4.0,3 – Moderate,0.0,4.0,0.4,0.0,0.4
+50,0,-1,Sn,Tin,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+51,0,-1,Sb,Antimony,Element,2.15,2 – Low,0.0,2.15,0.215,0.0,0.215
+52,0,-1,Te,Tellurium,Element,4.0,3 – Moderate,0.0,4.0,0.4,0.0,0.4
+53,0,-1,I,Iodine,Element,2.3,2 – Low,0.0,2.3,0.23,0.0,0.23
+54,0,-1,Xe,Xenon,Element,1.0,1 – Very low,0.0,1.0,0.1,0.0,0.1
+55,0,-1,Cs,Caesium,Element,10.0,7 – Severe,0.0,10.0,1.0,0.0,1.0
+56,0,-1,Ba,Barium,Element,6.15,4 – Elevated,0.0,6.15,0.615,0.0,0.615
+57,0,-1,La,Lanthanum,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+58,0,-1,Ce,Cerium,Element,1.68,1 – Very low,0.0,1.68,0.168,0.0,0.168
+59,0,-1,Pr,Praseodymium,Element,1.35,1 – Very low,0.0,1.35,0.135,0.0,0.135
+60,0,-1,Nd,Neodymium,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+61,147,0,Pm,Promethium,Promethium-147,2.15,2 – Low,2.15,0.0,0.215,0.215,0.0
+62,0,-1,Sm,Samarium,Element,1.8,1 – Very low,0.0,1.8,0.18,0.0,0.18
+63,0,-1,Eu,Europium,Element,6.75,5 – High,0.0,6.75,0.675,0.0,0.675
+64,0,-1,Gd,Gadolinium,Element,1.8,1 – Very low,0.0,1.8,0.18,0.0,0.18
+65,0,-1,Tb,Terbium,Element,1.2,1 – Very low,0.0,1.2,0.12,0.0,0.12
+66,0,-1,Dy,Dysprosium,Element,1.2,1 – Very low,0.0,1.2,0.12,0.0,0.12
+67,0,-1,Ho,Holmium,Element,1.2,1 – Very low,0.0,1.2,0.12,0.0,0.12
+68,0,-1,Er,Erbium,Element,1.2,1 – Very low,0.0,1.2,0.12,0.0,0.12
+69,0,-1,Tm,Thulium,Element,1.35,1 – Very low,0.0,1.35,0.135,0.0,0.135
+70,0,-1,Yb,Ytterbium,Element,1.68,1 – Very low,0.0,1.68,0.168,0.0,0.168
+71,0,-1,Lu,Lutetium,Element,1.2,1 – Very low,0.0,1.2,0.12,0.0,0.12
+72,0,-1,Hf,Hafnium,Element,2.7,2 – Low,0.0,2.7,0.27,0.0,0.27
+73,0,-1,Ta,Tantalum,Element,1.2,1 – Very low,0.0,1.2,0.12,0.0,0.12
+74,0,-1,W,Tungsten,Element,1.2,1 – Very low,0.0,1.2,0.12,0.0,0.12
+75,0,-1,Re,Rhenium,Element,1.2,1 – Very low,0.0,1.2,0.12,0.0,0.12
+76,0,-1,Os,Osmium,Element,3.25,2 – Low,0.0,3.25,0.326,0.0,0.326
+77,0,-1,Ir,Iridium,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+78,0,-1,Pt,Platinum,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+79,0,-1,Au,Gold,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+80,0,-1,Hg,Mercury,Element,4.9,3 – Moderate,0.0,4.9,0.49,0.0,0.49
+81,0,-1,Tl,Thallium,Element,4.38,3 – Moderate,0.0,4.38,0.438,0.0,0.438
+82,0,-1,Pb,Lead,Element,4.3,3 – Moderate,0.0,4.3,0.43,0.0,0.43
+83,0,-1,Bi,Bismuth,Element,0.0,0 – Negligible,0.0,0.0,0.0,0.0,0.0
+84,209,0,Po,Polonium,Polonium-209,7.0,5 – High,7.0,,0.7,0.7,
+85,0,-1,At,Astatine,Element (most stable/common isotope),7.5,5 – High,7.5,,0.75,0.75,
+86,0,-1,Rn,Radon,Element (most stable/common isotope),10.0,7 – Severe,10.0,,1.0,1.0,
+87,0,-1,Fr,Francium,Element (most stable/common isotope),5.53,4 – Elevated,5.53,,0.553,0.553,
+88,0,-1,Ra,Radium,Element (most stable/common isotope),9.53,7 – Severe,9.53,,0.953,0.953,
+89,225,0,Ac,Actinium,Actinium-225,8.24,6 – Very high,8.24,,0.824,0.824,
+90,0,-1,Th,Thorium,Element (natural),3.85,3 – Moderate,3.41,2.23,0.385,0.341,0.223
+91,0,-1,Pa,Protactinium,Element (most stable/common isotope),7.0,5 – High,7.0,,0.7,0.7,
+92,0,-1,U,Uranium,Element (natural),5.16,4 – Elevated,3.94,4.38,0.516,0.394,0.438
+93,0,-1,Np,Neptunium,Element (most stable/common isotope),5.94,4 – Elevated,5.94,,0.594,0.594,
+94,239,0,Pu,Plutonium,Plutonium-239,7.0,5 – High,7.0,,0.7,0.7,
+95,241,0,Am,Americium,Americium-241,7.0,5 – High,7.0,,0.7,0.7,
+95,243,0,Am,Americium,Americium-243,7.46,5 – High,7.46,,0.746,0.746,
+96,244,0,Cm,Curium,Curium-244,8.77,6 – Very high,8.77,,0.877,0.877,
+96,248,0,Cm,Curium,Curium-248,10.0,7 – Severe,10.0,,1.0,1.0,
+97,249,0,Bk,Berkelium,Berkelium-249,5.0,4 – Elevated,5.0,,0.5,0.5,
+98,249,0,Cf,Californium,Californium-249,7.52,5 – High,7.52,,0.752,0.752,
+98,252,0,Cf,Californium,Californium-252,10.0,7 – Severe,10.0,,1.0,1.0,
+99,0,-1,Es,Einsteinium,Element (most stable/common isotope),6.95,5 – High,6.95,,0.695,0.695,
+100,0,-1,Fm,Fermium,Element (most stable/common isotope),7.0,5 – High,7.0,,0.7,0.7,
+101,0,-1,Md,Mendelevium,Element (most stable/common isotope),9.44,7 – Severe,9.44,,0.944,0.944,
+102,0,-1,No,Nobelium,Element (most stable/common isotope),10.0,7 – Severe,10.0,,1.0,1.0,
+103,0,-1,Lr,Lawrencium,Element (most stable/common isotope),10.0,7 – Severe,10.0,,1.0,1.0,
+104,0,-1,Rf,Rutherfordium,Element (most stable/common isotope),10.0,7 – Severe,10.0,,1.0,1.0,
+105,0,-1,Db,Dubnium,Element (most stable/common isotope),10.0,7 – Severe,10.0,,1.0,1.0,
+106,0,-1,Sg,Seaborgium,Element (most stable/common isotope),7.0,5 – High,7.0,,0.7,0.7,
+107,0,-1,Bh,Bohrium,Element (most stable/common isotope),7.0,5 – High,7.0,,0.7,0.7,
+108,0,-1,Hs,Hassium,Element (most stable/common isotope),10.0,7 – Severe,10.0,,1.0,1.0,
+109,0,-1,Mt,Meitnerium,Element (most stable/common isotope),7.0,5 – High,7.0,,0.7,0.7,
+110,0,-1,Ds,Darmstadtium,Element (most stable/common isotope),10.0,7 – Severe,10.0,,1.0,1.0,
+111,0,-1,Rg,Roentgenium,Element (most stable/common isotope),7.0,5 – High,7.0,,0.7,0.7,
+112,0,-1,Cn,Copernicium,Element (most stable/common isotope),7.0,5 – High,7.0,,0.7,0.7,
+113,0,-1,Nh,Nihonium,Element (most stable/common isotope),7.0,5 – High,7.0,,0.7,0.7,
+114,0,-1,Fl,Flerovium,Element (most stable/common isotope),7.0,5 – High,7.0,,0.7,0.7,
+115,0,-1,Mc,Moscovium,Element (most stable/common isotope),7.0,5 – High,7.0,,0.7,0.7,
+116,0,-1,Lv,Livermorium,Element (most stable/common isotope),7.0,5 – High,7.0,,0.7,0.7,
+117,0,-1,Ts,Tennessine,Element (most stable/common isotope),7.0,5 – High,7.0,,0.7,0.7,
+118,0,-1,Og,Oganesson,Element (most stable/common isotope),7.0,5 – High,7.0,,0.7,0.7,
