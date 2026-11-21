@@ -57,6 +57,7 @@ nuclides in the window cannot be hit; a warning lists them.
 """
 from __future__ import annotations
 
+import copy
 import os
 import re
 from collections import deque
@@ -70,7 +71,7 @@ from .decaylib import OUTSIDE, DecayLibrary, Nuclide, label
 from .fortran import S, locate, pol1, sexp
 from .irradiation import Irradiation, irradiate, isotopia_times
 from .matrix import Inventory, Reactions
-from .rates import _read_neutron_spectrum, _read_photon_spectrum, stoppingpower
+from .rates import _charged_particle_spectrum, _read_neutron_spectrum, _read_photon_spectrum
 
 # Tolerance of the check that the rebuilt weights reproduce the port's rates. The
 # port sums in float32 (relative precision 6e-8 per term), the rebuild in float64.
@@ -167,13 +168,12 @@ def rate_grid(st) -> RateGrid:
         return RateGrid(np.array(E, dtype=float), G * np.array(phi, dtype=float),
                         float(st.fluxtotal))
 
-    # Charged particles: 100 slices from E_back to E_beam, weight = dE / S(E)
-    n = 100
-    dE = (st.Ebeam - st.Eback) / S(n)
-    E = [st.Eback + (S(k) - S(0.5)) * dE for k in range(1, n + 1)]
-    Sp = np.array([float(stoppingpower(st, e)) for e in E])
-    weights = np.where(Sp != 0, 1.0 / np.where(Sp != 0, Sp, 1.0), 0.0) * float(dE)
-    return RateGrid(np.array(E, dtype=float), weights, float(st.projnum / st.V_target))
+    # Charged particles: 100 slices from E_back to E_beam, weight = phi dE with phi = 1/S
+    # (Bethe-Bloch at the midpoint, or the bin mean from the SRIM range table). Same helper
+    # as the port, on a copy so the State the run left behind is not touched.
+    _, E, dE, phi, projrate_density = _charged_particle_spectrum(copy.copy(st))
+    weights = np.array(phi[1:], dtype=float) * np.array(dE[1:], dtype=float)
+    return RateGrid(np.array(E[1:], dtype=float), weights, float(projrate_density))
 
 
 # ----------------------------------------------------------------------------
