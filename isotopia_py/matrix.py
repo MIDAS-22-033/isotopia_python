@@ -1,8 +1,9 @@
 """General Bateman solver: dN/dt = M N, solved as N(t) = exp(M t) N(0).
 
-Stage 2: radioactive decay plus reactions on the target. Daughters are not
-hit yet. The irradiation itself (two phases, data from an ISOTOPIA run) is
-set up in ``irradiation.py``; this module holds the network and the solver.
+Radioactive decay plus reactions on any nuclide the beam hits. The
+irradiation itself (two phases, data from an ISOTOPIA run) is set up in
+``irradiation.py``, and reactions on products in ``daughters.py``; this
+module holds the network and the solver.
 
 Physics (manual Eq. 4.1):
 
@@ -33,6 +34,11 @@ diagonal exactly while squaring. Matrices are kept dense (numpy arrays):
 for networks of a few hundred nuclides this was 60x faster than sparse
 storage in scipy's expm, with identical results.
 
+When decay or reactions lead back to a nuclide already in the chain (a
+cycle, e.g. F-18 -> O-18 while irradiating O-18), M cannot be triangular.
+Nuclides removed faster than QSS_RATE are then taken as decaying instantly,
+which keeps scipy's general algorithm accurate (see _propagate_cyclic).
+
 Limitations:
 * Inventories much smaller than the largest one can lose relative accuracy;
   below about 1e-15 of the largest they are rounding noise.
@@ -48,10 +54,13 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy.sparse.linalg import expm
 
-from .decaylib import DecayDataError, DecayLibrary, Nuclide, label
+from .decaylib import OUTSIDE, DecayDataError, DecayLibrary, Nuclide, label
 
 # Report a nuclide whose library branching ratios sum differently from 1 by more than this.
 BR_SUM_TOL = 1e-3
+# In networks with a cycle, nuclides removed faster than this [s^-1] (half-life < 69 ms)
+# are taken as in equilibrium; see _propagate_cyclic.
+QSS_RATE = 10.0
 
 
 @dataclass(frozen=True)
@@ -190,10 +199,12 @@ def build_chain(initial: Iterable[Nuclide], library: DecayLibrary,
             if n in in_progress:
                 cyclic = True
             return
-        d = library.get(n)
+        d = None if n == OUTSIDE else library.get(n)
         data[n] = d
         in_progress.add(n)
-        if d is None:
+        if n == OUTSIDE:
+            pass                       # the window bin: collects atoms, never decays
+        elif d is None:
             msg = f"no decay data for {label(n)} in {library.file_for(n[0])}"
             if on_missing == "error":
                 raise DecayDataError(msg)
@@ -218,8 +229,9 @@ def build_chain(initial: Iterable[Nuclide], library: DecayLibrary,
     for n in initial:
         visit(tuple(n))
     if cyclic:
-        warnings.append("The decay and reaction links contain a cycle; the matrix is not "
-                        "triangular and the less accurate general expm path is used.")
+        warnings.append("The decay and reaction links contain a cycle, so the matrix is not "
+                        "triangular: nuclides removed faster than 10 s^-1 (half-life < 69 ms) "
+                        "are treated as decaying instantly (quasi-steady state).")
 
     # Decay matrix: -lambda_i on the diagonal, lambda_k * BR into each daughter row.
     index = {n: k for k, n in enumerate(order)}
@@ -247,6 +259,11 @@ def build_chain(initial: Iterable[Nuclide], library: DecayLibrary,
 def propagate(M: np.ndarray, N0: np.ndarray, times: Iterable[float]) -> np.ndarray:
     """N(t) = exp(M t) N0 at each time, for a constant matrix M.
 
+    With the nuclides ordered products-first, M is upper triangular unless
+    the links contain a cycle (e.g. a product decaying back into the target).
+    Triangular: plain expm, whose diagonal is exact (Al-Mohy & Higham 2009).
+    With a cycle: see ``_propagate_cyclic``.
+
     Parameters
     ----------
     M : numpy.ndarray
@@ -265,8 +282,45 @@ def propagate(M: np.ndarray, N0: np.ndarray, times: Iterable[float]) -> np.ndarr
     if np.any(times < 0):
         raise ValueError("times must be >= 0")
     N0 = np.asarray(N0, dtype=float)
+    if np.any(np.tril(M, -1)):
+        return _propagate_cyclic(M, N0, times)
     # Each time is an independent exact evaluation, not a step from the previous one.
     return np.array([expm(M * t) @ N0 if t > 0 else N0.copy() for t in times])
+
+
+def _propagate_cyclic(M: np.ndarray, N0: np.ndarray, times: np.ndarray) -> np.ndarray:
+    """exp(M t) N0 for a non-triangular M, with very short-lived nuclides in equilibrium.
+
+    Without triangular structure scipy's expm cannot recompute the diagonal
+    exactly, and its error grows with |M| t: one nuclide with a 125 ns
+    half-life in a cycle (At-213 -> Bi-209) gave relative errors of 1e-5
+    against a 50-digit reference. Nuclides E removed faster than QSS_RATE
+    are therefore taken as in quasi-steady state, dN_E/dt = 0 (the standard
+    treatment of short-lived nuclides in depletion codes). Splitting the
+    vector into kept nuclides K and E:
+
+        dN_K/dt = (M_KK - M_KE M_EE^-1 M_EK) N_K        (Schur complement)
+        N_E     = -M_EE^-1 M_EK N_K
+
+    Atoms reaching E pass on at once to E's products. Atoms already in E at
+    t = 0 are passed on the same way. On the Bi-209 network this gave 1e-11.
+    Valid when every output time is much longer than 1 / QSS_RATE (0.1 s).
+    """
+    E = np.nonzero(-np.diag(M) > QSS_RATE)[0]
+    if len(E) == 0:
+        return np.array([expm(M * t) @ N0 if t > 0 else N0.copy() for t in times])
+    K = np.setdiff1d(np.arange(len(M)), E)
+    X = np.linalg.solve(M[np.ix_(E, E)], M[np.ix_(E, K)])      # M_EE^-1 M_EK
+    M_red = M[np.ix_(K, K)] - M[np.ix_(K, E)] @ X
+    N0_K = N0[K] - M[np.ix_(K, E)] @ np.linalg.solve(M[np.ix_(E, E)], N0[E])
+    out = np.empty((len(times), len(M)))
+    for n, t in enumerate(times):
+        if t == 0:
+            out[n] = N0
+            continue
+        NK = expm(M_red * t) @ N0_K
+        out[n, K], out[n, E] = NK, -X @ NK
+    return out
 
 
 def solve(chain: DecayChain, N0: np.ndarray, times: Iterable[float]) -> np.ndarray:

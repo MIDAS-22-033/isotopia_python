@@ -1,8 +1,9 @@
-"""Irradiation of a target with the matrix solver (stage 2: target reactions only).
+"""Irradiation of a target with the matrix solver.
 
 The beam hits the target; the products decay through the full decay network
-(every branch, isomeric transitions, chains of any length), but are not hit
-again. Two phases (manual Section 4.1, Eq. 4.1):
+(every branch, isomeric transitions, chains of any length). By default the
+products are not hit again; pass ``reactions`` from ``daughters.hit_reactions``
+(or use ``daughters.irradiate_with_hits``) to hit them too. Two phases (manual Section 4.1, Eq. 4.1):
 
     irradiation, 0 <= t <= t_irr:  dN/dt = (A + R) N,  N(0) = N_0 target atoms
     cooling,     t > t_irr:        dN/dt = A N,        starting from N(t_irr)
@@ -38,7 +39,7 @@ Assumptions kept from ISOTOPIA:
 """
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -185,7 +186,8 @@ class Irradiation:
 
 
 def irradiate(irr: Irradiation, times: Iterable[float],
-              library: DecayLibrary | None = None, on_missing: str = "error") -> Inventory:
+              library: DecayLibrary | None = None, on_missing: str = "error",
+              reactions: Mapping[Nuclide, Reactions] | None = None) -> Inventory:
     """Inventories during irradiation and cooling, from the matrix solver.
 
     Parameters
@@ -200,6 +202,10 @@ def irradiate(irr: Irradiation, times: Iterable[float],
     on_missing : {'error', 'warn'}
         Handling of nuclides absent from the decay library; see
         ``matrix.build_chain``.
+    reactions : mapping of Nuclide to Reactions, optional
+        Every nuclide the beam hits, with its burnup and product rates
+        [s^-1], e.g. from ``daughters.hit_reactions``. Default: the target
+        only, from ``irr``.
 
     Returns
     -------
@@ -207,8 +213,9 @@ def irradiate(irr: Irradiation, times: Iterable[float],
         Atoms of every nuclide at each time, with warnings.
     """
     library = library or DecayLibrary()
-    net = build_chain([irr.target, *irr.rates], library, on_missing,
-                      reactions={irr.target: Reactions(irr.burnup, irr.rates)})
+    if reactions is None:
+        reactions = {irr.target: Reactions(irr.burnup, irr.rates)}
+    net = build_chain([irr.target], library, on_missing, reactions=reactions)
     N0 = np.zeros(len(net.nuclides))
     N0[net.index[irr.target]] = irr.N0
 
