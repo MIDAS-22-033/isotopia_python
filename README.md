@@ -37,17 +37,24 @@ one `State` object instead of global arrays.
 
 ## Setup
 
-Python 3.10+ with NumPy (and SciPy for `matrix.py`). The port needs ISOTOPIA's `files/` folder (abundances, decay
-data, neutron and photon spectra) and the cross-section library. It can stand alone, with
-both inside this repository:
+Python 3.10+ with NumPy (and SciPy for `matrix.py`). The port needs ISOTOPIA's `files/` folder
+(abundances, decay data, neutron and photon spectra) and the cross-section library. It stands
+alone: `files/` and `samples/` are part of this repository, and only the library has to be
+downloaded into it:
 
 ```text
 isotopia_python/        # this repository
 ├── isotopia_py/        # the code, with the SRIM tables in isotopia_py/srim_tables/
-├── files/              # copied from the Fortran repository (abundance/, decay/, ...)
-├── samples/            # optional, copied from the Fortran repository, for the sample tests
+├── files/              # ISOTOPIA data: abundance/, decay/, neutron_spectra/, photon_spectra/
+├── samples/            # the 21 ISOTOPIA sample cases with Fortran reference outputs (org/)
 └── isotopia.libs/      # github.com/arjankoning1/isotopia.libs (about 5 GB, 800 000 files)
 ```
+
+`files/` and `samples/` are copied unchanged from the team's Fortran repository,
+[MIDAS-22-033/isotopia_midas](https://github.com/MIDAS-22-033/isotopia_midas) (commit
+`640f478`), which carries the original ISOTOPIA data and samples by A. J. Koning under the
+MIT licence. The sample references (`samples/*/org`) are its fixed Fortran outputs; never
+edit them.
 
 Get the library once, from inside this repository (it is in `.gitignore` and is never
 committed):
@@ -139,7 +146,7 @@ decay). Run them with `python -m pytest`.
 ## Checking against the Fortran
 
 ```bash
-python scripts/run_samples.py                 # all samples vs isotopia/samples/*/org
+python scripts/run_samples.py                 # all samples vs samples/*/org
 python scripts/run_samples.py p-Mo100-Tc099m  # one sample
 python scripts/run_samples.py --ref runs/fortran   # vs your own Fortran runs
 pytest                                        # same, plus unit tests

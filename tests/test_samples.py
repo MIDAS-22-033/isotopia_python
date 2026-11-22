@@ -1,5 +1,5 @@
 """Run the ISOTOPIA sample cases through the Python port and compare them
-with the reference outputs shipped in isotopia/samples/*/org.
+with the reference outputs shipped in samples/*/org.
 
 Needs the cross-section library (isotopia.libs in this repository, or ISOTOPIA_LIBS)
 and the samples folder next to files/ (in this repository, or ISOTOPIA_DIR). Without it the

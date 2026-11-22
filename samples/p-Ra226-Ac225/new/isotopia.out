@@ -1,0 +1,121 @@
+
+    ISOTOPIA-2.23   (Version: July 9, 2026)
+
+           Simulation of medical isotope production
+
+ Copyright (C) 2026  A.J. Koning
+
+ User: Arjan Koning
+ Date: 2026-10-25
+
+ ########## USER INPUT ##########
+
+ USER INPUT FILE
+
+ projectile p
+ element ra
+ mass 226
+ ebeam 16.8
+ eback 4.
+ ibeam 0.100
+
+ USER INPUT FILE + DEFAULTS
+
+ Keyword           Value   Variable     Explanation
+
+ user      Arjan Koning    user         user for this calculation
+ source    ISOTOPIA        source       source for this calculation
+ format    YANDF-0.4       oformat      format for output
+ crosspath /home/natem297/nuclear/isotopia.libs/   crosspath    directory containing cross sections 
+ #
+ # Nuclear reaction
+ #
+ projectile          p     ptype0       type of incident particle
+ element            Ra     Starget      symbol of target nucleus
+ mass              226     Atarget      mass number of target nucleus
+ #
+ # Accelerator 
+ #
+ Ebeam              16.800 Ebeam        incident energy in MeV
+ Eback               4.000 Eback        lower end of energy range in MeV
+ Ibeam               0.100 Ibeam_input  beam current in mA
+ fgamma              0.300 fgamma       electron-to-photon conversion effiency
+ #
+ # Output 
+ #
+ radiounit             bq  radiounit    unit for radioactivity
+ yieldunit (massunit)  g   yieldunit    unit for isotope yield
+ ZAoutput              n   flagZAoutput output files per Z, A instead of El, A
+ #
+ # Target
+ #
+ Tirrad              1     Tirrad       d irradiation time
+ Area                1.000 Area         target area in cm^2
+ Tcool               1     Tcool        d cooling time
+ selfshield            y flagselfshield flag for self-shielding 
+ #
+ # Cross section and decay data
+ #
+ Zdepth             10     Zdepth       depth to which Z numbers are scanned for cross sections
+ Adepth             20     Adepth       depth to which A numbers are scanned for cross sections
+ decay               y     flagdecay    flag to include decay of nuclides (n only for diagnosis) 
+
+
+ Summary of isotope production for p + Ra226
+
+ Maximal irradiation time [s]:    8.640000E+04 (     0 years   1 days  0 hours  0 minutes  0 seconds)
+ Cooling time [s]:    8.640000E+04 (     0 years   1 days  0 hours  0 minutes  0 seconds)
+ E-beam [MeV]:   1.680000E+01
+ E-back [MeV]:   4.000000E+00
+ Beam current [mA]:        0.100
+ Target material density [g/cm^3]:   5.500000E+00
+ Target area [cm^2]:   1.000000E+00
+ Effective target thickness [cm]:   1.302817E-01
+ Effective target volume [cm^3]:   1.302817E-01
+ Effective target mass [g]:   7.165495E-01
+ Average energy of spectrum [MeV]:    1.130599E+01
+ Number of target atoms:    1.909364E+21
+ Number of incident particles [s^-1]:   6.241510E+14
+ Produced heat in target [kW]:   1.280000E+00
+
+ (Maximum) production and decay rates per isotope
+
+ Total production rate [s^-1]:   2.202657E-10
+
+#  Nuc       Activity     Spec_activity    Prod_rate      #Isotopes Isot_fraction  Reac_constant   Decay_constant            Half-life                      Time of maximum production
+#              [Bq]          [Bq/g]        [Bq/(mA.h)]        []            []        [s^-1]         [s^-1]       
+ Th 227     7.135278E+02   9.957829E+02   6.018410E+00   1.664792E+09   0.00007   0.000000E+00   4.285988E-07          0 y  18 d  17 h  14 m   0 s           0 y 204 d  14 h  55 m  22 s 
+ Th 226     9.252951E+09   1.291321E+10   1.367994E+09   2.448508E+13   0.99993   0.000000E+00   3.779017E-04          0 y   0 d   0 h  30 m  34 s           0 y   0 d  10 h  33 m   6 s 
+ Ac 227     3.901330E+04   5.444607E+04   1.625639E+04   3.867317E+13   0.00151   2.344393E-13   1.008795E-09         21 y 282 d   8 h  12 m  48 s          61 y  55 d   0 h  10 m  40 s 
+ Ac 226     9.472422E+09   1.321949E+10   5.140454E+09   1.444914E+15   0.05656   1.147226E-11   6.555699E-06          0 y   1 d   5 h  22 m  12 s           0 y  18 d   4 h  29 m  19 s 
+ Ac 225     1.878787E+10   2.621993E+10   8.097029E+09   2.341887E+16   0.91671   1.469345E-10   8.022537E-07          0 y  10 d   0 h   0 m   0 s           0 y 118 d   8 h   7 m  24 s 
+ Ac 224     4.461964E+10   6.227015E+10   1.051187E+11   6.442404E+14   0.02522   2.342824E-11   6.925931E-05          0 y   0 d   2 h  46 m  48 s           0 y   2 d   2 h  46 m  10 s 
+ Ra 226     2.621194E+10   3.658077E+10   5.460820E+11   1.909363E+21   1.00000   1.806948E-12   1.372811E-11       1599 y 352 d  23 h  53 m  36 s         425 y 297 d  15 h  49 m  20 s 
+ Ra 225     1.092064E+07   1.524060E+07   4.655517E+06   2.014644E+13   0.00000   1.250058E-13   5.420633E-07          0 y  14 d  19 h  12 m   0 s           0 y 166 d  18 h  57 m  18 s 
+ Ra 224     3.999629E+06   5.581790E+06   1.826755E+06   1.814719E+12   0.00000   1.208107E-14   2.203994E-06          0 y   3 d  15 h  21 m  36 s           0 y  48 d   9 h   0 m  25 s 
+ Ra 223     1.756774E+02   2.451713E+02   7.539581E+01   2.502940E+08   0.00000   1.563702E-18   7.018842E-07          0 y  11 d  10 h  19 m  12 s           0 y 133 d   1 h  28 m  34 s 
+ Fr 225     1.837528E-07   2.564412E-07   3.802151E-06   6.362382E-05   0.00000   9.623784E-29   2.888113E-03          0 y   0 d   0 h   4 m   0 s           0 y   0 d   1 h  34 m  34 s 
+ Fr 222     1.212442E+07   1.692056E+07   1.906658E+08   1.490305E+10   0.99794   6.350004E-15   8.135531E-04          0 y   0 d   0 h  14 m  12 s           0 y   0 d   5 h   9 m  47 s 
+ Fr 221     7.243424E+04   1.010876E+05   1.483381E+06   3.072315E+07   0.00206   3.793638E-17   2.357644E-03          0 y   0 d   0 h   4 m  54 s           0 y   0 d   1 h  54 m  25 s 
+ Fr 220     4.468670E-02   6.236373E-02   9.309729E-01   1.766458E+00   0.00000   2.340399E-23   2.529734E-02          0 y   0 d   0 h   0 m  27 s           0 y   0 d   0 h  12 m  13 s 
+ Rn 222     2.215340E-02   3.091678E-02   1.007445E-02   1.055710E+04   1.00000   6.997157E-23   2.098437E-06          0 y   3 d  19 h  45 m  16 s           0 y  50 d  12 h  55 m   3 s 
+ At 217     8.718100E-07   1.216678E-06   1.816271E-05   4.062552E-08   1.00000   4.565974E-28   2.145967E+01          0 y   0 d   0 h   0 m   0 s           0 y   0 d   0 h   0 m   1 s 
+
+file: Th227.act
+file: Th226.act
+file: Ac227.act
+file: Ac226.act
+file: Ac225.act
+file: Ac224.act
+file: Ra226.act
+file: Ra225.act
+file: Ra224.act
+file: Ra223.act
+file: Fr225.act
+file: Fr222.act
+file: Fr221.act
+file: Fr220.act
+file: Rn222.act
+file: At217.act
+
+  End of ISOTOPIA calculation for p + Ra226
