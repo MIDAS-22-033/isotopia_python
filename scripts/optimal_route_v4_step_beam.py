@@ -863,7 +863,9 @@ def run_rates(spec: RunSpec) -> dict:
            "stopping": None, "status": "ok", "note": ""}
     try:
         with tempfile.TemporaryDirectory() as tmp:
-            st = run(spec.lines, out=io.StringIO(), outdir=tmp)
+            # Only the target's production rates are used (StepProblem has no product
+            # hits yet), so the run's double-hit inventories would be computed for nothing
+            st = run(spec.lines + ["hits n"], out=io.StringIO(), outdir=tmp)
     except (IsotopiaError, OSError, ValueError) as exc:
         out.update(status="error", note=" ".join(str(exc).split()))
         return out
@@ -1000,8 +1002,8 @@ Assumptions and limitations (step beam)
 - Reaction rates from ISOTOPIA at the grid energies, linear in between; Eback of
   every step solved by ISOTOPIA from the fixed target thickness; beam current constant.
 - Total irradiation time fixed; only switch times and step energies vary.
-- Products are not hit again by the beam (no double hitting); target burnup is
-  spread uniformly over the target.
+- Products are not hit again by the beam (no double hitting, unlike the
+  constant-energy search); target burnup is spread uniformly over the target.
 - Only nuclides that can decay into the DI are tracked; states without decay data
   are treated as stable (chain truncated, warned).
 - The optimiser starts from the best constant beam, so steps never do worse; for a
@@ -1064,11 +1066,12 @@ Assumptions and limitations
   only the depth the beam reaches (Leff_cm); Bethe-Bloch runs fail instead,
   because the formula is not valid at those energies. Both are listed under
   Warnings.
-- Decay physics is the Phase 1 port of equations.f90, including its known defects
-  (claude/equations_f90_findings.md): beta- parents do NOT feed daughters during
-  cooling, no branching ratios, double-counted parent feeding, no isomeric
-  transition. End-of-cooling masses of DIs fed by beta- decay (including stable
-  DIs made mostly by decay) are therefore underestimated; compare m_EOI_g.
+- Double hitting (isotopia_py default): reaction products inside ISOTOPIA's window
+  (Zdepth, Adepth) are hit by the beam too, and decay follows the full decay
+  network (all branches, isomeric transitions, cooling feeding) via the matrix
+  solver. Products without cross sections are not hit: those living less than a
+  day are expected, missing ones (stable or a day or longer) are listed in each
+  run's isotopia.out and missing_cross_sections.txt.
 - Exclusion checks the target and the one-step decay precursors ISOTOPIA models;
   longer chains are not tracked by the code.
 - Radiotoxicity and processing time are not part of the ranking yet.

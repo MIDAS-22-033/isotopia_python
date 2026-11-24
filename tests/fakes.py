@@ -41,7 +41,9 @@ def run_sample_capturing(case: str, outdir: Path, monkeypatch, capture) -> None:
 
     monkeypatch.setattr(kinetics, "_equations", hooked)
     lines = (SAMPLES / case / "org" / "isotopia.inp").read_text(encoding="utf-8").splitlines()
-    run(lines, out=io.StringIO(), outdir=str(outdir))
+    # The port's own equations: double hitting (on by default) would overwrite the
+    # inventories ``capture`` sees once kinetics.equations finishes.
+    run(lines + ["hits n"], out=io.StringIO(), outdir=str(outdir))
 
 
 class FakeLibrary:

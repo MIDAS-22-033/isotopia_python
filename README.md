@@ -94,6 +94,17 @@ st.Tgrid                        # the time grid [s]
 st.reaction_rate[(43, 99, 1)]   # reaction constant [s^-1]
 ```
 
+**Double hitting is on by default** (not in the Fortran): after the port computes the
+reaction rates, the inventories come from the matrix solver with every reaction
+product inside ISOTOPIA's own window (`Zdepth`, `Adepth`) hit by the beam too, and
+decay through the full decay network. The output files are the same; `isotopia.out`
+ends each target with a double-hitting summary, and `missing_cross_sections.txt`
+lists the nuclides whose cross sections are missing (see *Matrix solver*). The input
+line `hits n` turns it off and gives the port's single-hit results;
+`fortran_defaults=True` (used for the comparisons with the Fortran) turns it off too.
+The first run of a target reads several thousand library tables (tens of seconds or
+more); later runs in the same process reuse them.
+
 Nuclides are keyed `(Z, A, isomer)` with isomer `-1` = total, `0` = ground state,
 `1` = first isomer, `2` = second.
 
@@ -104,7 +115,8 @@ a vector and solves dN/dt = M N exactly with a matrix exponential (manual
 Eq. 4.1), so the time grid only chooses output points. M holds every decay
 branch (isomeric transitions, chains of any length, read by `decaylib.py`)
 and, during irradiation, the reactions on the target and, optionally, on its
-products inside an A/Z window. The main ISOTOPIA run does not use it.
+products inside an A/Z window. The main run uses it by default (double hitting,
+below).
 
 Decay only:
 
@@ -149,9 +161,14 @@ inv[(0, 0, 0)]                 # atoms that left the window ("outside_window")
 
 Hit nuclides deplete the way ISOTOPIA actually depletes the target: at the
 non-elastic rate for charged particles and photons, and at the total cross
-section (elastic included) for neutrons with self-shielding. The library has unstable nuclides as targets only if they live about
-a day or longer; shorter-lived ones are not hit, and a warning lists them.
-Assumptions and limits are in the `daughters.py` docstring.
+section (elastic included) for neutrons with self-shielding. Every nuclide with
+cross sections in the library is hit, whatever its half-life. The library has
+unstable nuclides as targets only if they live about a day or longer, so a nuclide
+without cross sections is assumed not to be hit if it lives less than a day; if it
+is stable, lives a day or longer or has no decay data, its cross sections are
+missing and it is reported (warnings, and in the main run `isotopia.out` and
+`missing_cross_sections.txt`). Assumptions and limits are in the `daughters.py`
+docstring.
 
 `isotopia_compat.compat_inventory(st)` reproduces the port's own equations,
 defects included, with the same matrix machinery. It exists to check the
