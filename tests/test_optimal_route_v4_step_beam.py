@@ -21,6 +21,10 @@ opt = importlib.util.module_from_spec(_spec)
 sys.modules["optimal_route"] = opt          # dataclasses need the module registered
 _spec.loader.exec_module(opt)
 
+from isotopia_py import (
+    run_cache,
+)
+from isotopia_py.run import run
 
 # ---------------------------------------------------------------- names and lists
 
@@ -60,21 +64,25 @@ def test_energy_grid():
     assert opt.energy_grid(1.0, 3.0, 0.5).tolist() == [1.0, 1.5, 2.0, 2.5, 3.0]
 
 
-def test_candidate_targets_mass_window(tmp_path):
-    """Targets span A-5..A+5; lighter ones that cannot reach A_DI (A + 1 < A_DI
-    for protons) are skipped with a warning, isomeric targets are skipped."""
+def test_candidate_targets_whole_library(tmp_path):
+    """Every ground-state library target is returned; in_window marks whether the DI is
+    in ISOTOPIA's residual window. Isomeric targets and the DI itself are skipped."""
     lib = tmp_path / "libs"
-    for name in ("Mo094", "Mo098", "Mo100", "Ru104", "Ru105", "Tc099m"):
+    for name in ("Mo094", "Mo098", "Mo100", "Ru104", "Ru105", "Tc099m", "Au197", "C012"):
         (lib / "p" / name).mkdir(parents=True)
     ab = tmp_path / "code" / "files" / "abundance"
     ab.mkdir(parents=True)
     (ab / "z042").write_text("".join(f"{42:4d}{a:4d}{10.0:11.6f}\n" for a in (94, 98, 100)))
     (ab / "z044").write_text(f"{44:4d}{104:4d}{10.0:11.6f}\n")
+    (ab / "z079").write_text(f"{79:4d}{197:4d}{100.0:11.6f}\n")
+    (ab / "z006").write_text(f"{6:4d}{12:4d}{98.9:11.6f}\n")
     warnings: list[str] = []
     targets = opt.candidate_targets((43, 99, 1), 2, str(tmp_path / "code"), str(lib), False, warnings)
-    assert [t.name for t in targets] == ["Mo98", "Mo100", "Ru104"]
-    assert any("Mo094" in w and "cannot reach" in w for w in warnings)
-    assert any("Tc099m" in w for w in warnings)
+    window = {t.name: t.in_window for t in targets}
+    # Ru105 is radioactive (not in the abundance file), so it needs --include-radioactive
+    assert window == {"Au197": False, "C12": False, "Mo94": False, "Mo98": True, "Mo100": True,
+                      "Ru104": True}
+    assert any("Tc099m" in w and "isomeric" in w for w in warnings)
     # The DI's own ground state is not a production route; its isomer from it is
     warnings.clear()
     (lib / "p" / "Tc099").mkdir()
@@ -85,6 +93,15 @@ def test_candidate_targets_mass_window(tmp_path):
     names = [t.name for t in opt.candidate_targets((43, 99, 1), 2, str(tmp_path / "code"), str(lib),
                                                    False, [])]
     assert "Tc99" in names
+
+
+def test_residual_window_edges():
+    """ISOTOPIA window for p + target: Z = Zt+2 .. Zt+1-10, A = At+1 .. At+1-20."""
+    w = opt.in_residual_window
+    assert w(42, 100, 2, (43, 101, 0)) and w(42, 100, 2, (43, 81, 0))       # A edges
+    assert not w(42, 100, 2, (43, 102, 0)) and not w(42, 100, 2, (43, 80, 0))
+    assert w(42, 100, 2, (44, 90, 0)) and w(42, 100, 2, (33, 90, 0))        # Z edges
+    assert not w(42, 100, 2, (45, 90, 0)) and not w(42, 100, 2, (32, 90, 0))
 
 
 # ---------------------------------------------------------------- ranking metrics
@@ -315,7 +332,7 @@ def test_mo100_route_mass_and_precursor_exclusion(tmp_path):
     assert row["status"] == "ok" and row["m_EOC_g"] > 0
     assert row["Leff_cm"] == pytest.approx(0.05, rel=1e-3)
     assert row["stopping"] == "srim"                  # Mo (Z = 42) has a SRIM table
-    st = opt.run(lines, out=io.StringIO(), outdir=str(tmp_path))
+    st = run(lines, out=io.StringIO(), outdir=str(tmp_path))
     key = (43, 99, 1)
     N_eoc = float(st.activity[key][opt.NUMTIME]) / float(st.lam[key])
     assert row["m_EOC_g"] == pytest.approx(N_eoc * M / float(opt.AVOGADRO), rel=1e-5)
@@ -344,7 +361,7 @@ def test_step_solver_matches_isotopia_for_unfed_products(tmp_path):
     paths = _paths()
     lines = _proton_lines("Mo", 100, 20.0)
     # The step solver hits only the target: compare with ISOTOPIA's single-hit run
-    st = opt.run(lines + ["hits n"], out=io.StringIO(), outdir=str(tmp_path))
+    st = run(lines + ["hits n"], out=io.StringIO(), outdir=str(tmp_path))
     target = (42, 100, 0)
     P, P_T = opt.production_states(st, target)
     lib = opt.DecayLibrary(paths.path)
@@ -377,7 +394,7 @@ def test_stable_di_mass(tmp_path):
     row = opt.run_one(opt.RunSpec((44, 100, 0), 2, t, 30.0, None, lines, molar_mass=M))
     assert row["status"] == "ok" and row["m_EOI_g"] > 0
     assert row["m_EOC_g"] >= row["m_EOI_g"] * (1 - 1e-6)
-    st = opt.run(lines, out=io.StringIO(), outdir=str(tmp_path))
+    st = run(lines, out=io.StringIO(), outdir=str(tmp_path))
     key = opt.di_key(st, (44, 100, 0))
     direct = float(st.N_0) * float(st.reaction_rate[key]) * M / float(opt.AVOGADRO)   # g/s
     assert row["m_rate"] == pytest.approx(direct * 3600 / (float(st.Ibeam) * 1e3), rel=0.05)
@@ -437,3 +454,100 @@ def test_bethe_bloch_beam_that_stops_is_an_error():
     row = opt.run_one(opt.RunSpec((94, 237, 0), 2, opt.Target(93, 237, False), 8.0, None,
                                   _proton_lines("Np", 237, 8.0), molar_mass=M))
     assert row["status"] == "error" and "Bethe-Bloch" in row["note"]
+
+
+# ---------------------------------------------------------------- memoization (run cache)
+
+def _mo100_spec(di, cache_dir, ebeam=20.0, target=None, thickness=0.05):
+    paths = _paths()
+    lines = [x if not x.startswith("thickness") else f"thickness {thickness}"
+             for x in _proton_lines("Mo", 100, ebeam)]
+    return opt.RunSpec(di, 2, target or opt.Target(42, 100, True), ebeam, None, lines,
+                       molar_mass=opt.molar_mass(paths.path, di[0], di[1]),
+                       cache_dir=None if cache_dir is None else str(cache_dir))
+
+
+def _no_fresh_runs(monkeypatch):
+    def fail(lines):
+        raise AssertionError("ISOTOPIA was run although the result is cached")
+    monkeypatch.setattr(run_cache, "_fresh", fail)
+
+
+@needs_lib
+def test_cached_row_is_identical_to_fresh(tmp_path):
+    """A cache hit must give exactly the row of a fresh run (float32 values round-trip)."""
+    fresh = opt.run_one(_mo100_spec((43, 99, 1), None))
+    first = opt.run_one(_mo100_spec((43, 99, 1), tmp_path))       # miss: runs and saves
+    assert len(list(tmp_path.rglob("*.npz"))) == 1
+    second = opt.run_one(_mo100_spec((43, 99, 1), tmp_path))      # hit
+    assert fresh["status"] == "ok" and fresh == first == second
+
+
+@needs_lib
+def test_cache_is_reused_for_another_di(tmp_path, monkeypatch):
+    """One run holds every residual, so a search for another DI on the same input
+    reads the cache. Results match fresh runs for that DI."""
+    opt.run_one(_mo100_spec((43, 99, 1), tmp_path))               # fills the cache (Tc-99m)
+    fresh = opt.run_one(_mo100_spec((42, 99, 0), None))           # Mo-99, no cache
+    _no_fresh_runs(monkeypatch)
+    cached = opt.run_one(_mo100_spec((42, 99, 0), tmp_path))
+    assert fresh["status"] == "ok" and cached == fresh
+
+
+@needs_lib
+def test_snapshot_matches_state(tmp_path):
+    """Every attribute the search reads is identical between State and RunSnapshot."""
+    lines = _proton_lines("Mo", 100, 20.0)
+    st = run_cache.cached_run(lines, tmp_path)
+    snap = run_cache.cached_run(lines, tmp_path)
+    assert isinstance(snap, run_cache.RunSnapshot)
+    for name in run_cache._SCALARS + ("stopping_model", "beam_stops"):
+        assert getattr(snap, name) == getattr(st, name), name
+    assert np.array_equal(snap.Tgrid, st.Tgrid)
+    assert set(snap.Niso) == set(st.Niso)
+    assert all(np.array_equal(snap.Niso[k], st.Niso[k]) for k in st.Niso)
+    for name in ("reaction_rate", "rpexist", "rtyp", "Nisomer"):
+        assert dict(getattr(snap, name)) == dict(getattr(st, name)), name
+    assert snap.Nisomer[(1, 1)] == -1 and snap.reaction_rate[(1, 1, 5)] == 0   # State's defaults
+
+
+@needs_lib
+def test_cache_key_depends_on_input(tmp_path):
+    """A different thickness (or any input line) is a different run."""
+    opt.run_one(_mo100_spec((43, 99, 1), tmp_path, thickness=0.05))
+    opt.run_one(_mo100_spec((43, 99, 1), tmp_path, thickness=0.02))
+    assert len(list(tmp_path.rglob("*.npz"))) == 2
+    lines = _proton_lines("Mo", 100, 20.0)
+    assert run_cache.cache_key(lines) != run_cache.cache_key(lines + ["hits n"])
+
+
+@needs_lib
+def test_failed_run_is_cached(tmp_path, monkeypatch):
+    """The same input fails the same way, so the error is cached and replayed."""
+    paths = _paths()
+    spec = opt.RunSpec((94, 237, 0), 2, opt.Target(93, 237, False), 8.0, None,
+                       _proton_lines("Np", 237, 8.0), molar_mass=opt.molar_mass(paths.path, 94, 237),
+                       cache_dir=str(tmp_path))
+    first = opt.run_one(spec)
+    _no_fresh_runs(monkeypatch)
+    assert opt.run_one(spec) == first and first["status"] == "error"
+
+
+@needs_lib
+def test_corrupt_cache_file_is_rerun(tmp_path):
+    lines = _proton_lines("Mo", 100, 20.0)
+    run_cache.cached_run(lines, tmp_path)
+    (f,) = tmp_path.rglob("*.npz")
+    f.write_bytes(b"not a zip file")
+    assert not isinstance(run_cache.cached_run(lines, tmp_path), run_cache.RunSnapshot)
+    assert isinstance(run_cache.cached_run(lines, tmp_path), run_cache.RunSnapshot)
+
+
+@needs_lib
+def test_target_outside_window_is_labelled_not_ranked(tmp_path):
+    """A target whose residual window misses the DI is run (cache) but labelled."""
+    t = opt.Target(42, 100, True, in_window=False)
+    row = opt.run_one(_mo100_spec((43, 99, 1), tmp_path, target=t))
+    assert row["status"] == opt.OUTSIDE and "not a zero cross section" in row["note"]
+    assert row["Leff_cm"] == pytest.approx(0.05, rel=1e-3)       # the run itself happened
+    assert len(list(tmp_path.rglob("*.npz"))) == 1

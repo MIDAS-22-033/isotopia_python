@@ -1,7 +1,7 @@
 """Search for the optimal production route of a desired isotope (DI).
 
-For a DI with mass number A, the script runs isotopia_py for every candidate
-target with mass number A-5..A+5 and every beam energy on a linear grid. Each
+For a DI, the script runs isotopia_py for every ground-state target in the
+cross-section library and every beam energy on a linear grid. Each
 route reports the mass of the DI produced (g) at end of irradiation and at end
 of cooling, and the initial mass production rate; routes are ranked by the
 --metric chosen (default: mass at end of cooling). Stable and radioactive DIs
@@ -9,6 +9,12 @@ are handled the same way, because the masses come from ISOTOPIA's atom counts.
 
     python scripts/optimal_route.py Tc99_m1 --projectile p --de 1 --thickness 0.05
     python scripts/optimal_route.py Cu64 -p p d --de 0.5 --exclude blacklist.txt --jobs 4
+
+Memoization (--cache DIR, default runs/cache; --no-cache to switch off): one
+ISOTOPIA run gives every residual product at once, so each run is saved and reused
+by later searches for any DI with the same projectile, target, energy, thickness
+and times (isotopia_py.run_cache). The first full sweep is slow; later ones read
+from the cache.
 
 Outputs (in --out, default runs/optimal_route/<DI>):
     scan.csv     one row per run (route, Ebeam, Eback, masses, status)
@@ -41,11 +47,9 @@ from __future__ import annotations
 
 import argparse
 import csv
-import io
 import os
 import re
 import sys
-import tempfile
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -58,10 +62,9 @@ sys.path.insert(0, str(ROOT))
 from isotopia_py.constants import AVOGADRO, NUC, NUMTIME, PARA, PARMASS, PARSYM, PARZ, nuc  # noqa: E402
 from isotopia_py.fortran import endf_float  # noqa: E402
 from isotopia_py.inputdeck import machine  # noqa: E402
-from isotopia_py.run import run  # noqa: E402
+from isotopia_py.run_cache import cached_run  # noqa: E402
 from isotopia_py.state import IsotopiaError, State  # noqa: E402
 
-MASS_WINDOW = 5          # targets have mass number A_DI - MASS_WINDOW .. A_DI + MASS_WINDOW
 ZDEPTH_DEFAULT = 10      # ISOTOPIA default Zdepth (input.f90); limits which Z it computes
 ADEPTH_DEFAULT = 20      # ISOTOPIA default Adepth (input.f90); limits which A it computes
 NEUTRON_MASS_U = PARMASS[1]   # u; neutron mass from isotopia_py.constants (constants.f90)
@@ -129,9 +132,11 @@ def listed(Z: int, A: int, is_: int, entries: set[Nuclide]) -> Nuclide | None:
 
 @dataclass(frozen=True)
 class Target:
+    """Ground-state target. in_window: the DI lies in ISOTOPIA's residual window for it."""
     Z: int
     A: int
     stable: bool
+    in_window: bool = True
 
     @property
     def name(self) -> str:
@@ -150,20 +155,30 @@ def natural_masses(path: str, Z: int) -> set[int]:
     return masses
 
 
-def candidate_targets(di: Nuclide, k0: int, path: str, crosspath: str,
-                      include_radioactive: bool, warnings: list[str]) -> list[Target]:
-    """Library targets with A_DI - 5 <= A <= A_DI + 5 whose ISOTOPIA window contains the DI.
+def in_residual_window(Z: int, A: int, k0: int, di: Nuclide) -> bool:
+    """True if ISOTOPIA computes the DI's (Z, A) for target (Z, A) and projectile k0.
 
-    ISOTOPIA computes residuals for Z from Zcomp + 1 down to Zcomp - Zdepth and
-    for A from Acomp down to Acomp - Adepth, with Zcomp = Ztarget + Zprojectile,
+    ISOTOPIA computes residuals for Z from Zcomp + 1 down to Zcomp - Zdepth and for
+    A from Acomp down to Acomp - Adepth, with Zcomp = Ztarget + Zprojectile,
     Acomp = Atarget + Aprojectile, Zdepth = min(10, Ztarget - 1) and
     Adepth = min(20, Atarget - 1) (reacinitial.f90, checkvalue.f90).
+    """
+    Zcomp, Acomp = Z + PARZ[k0], A + PARA[k0]
+    return (Zcomp - min(ZDEPTH_DEFAULT, Z - 1) <= di[0] <= Zcomp + 1
+            and Acomp - min(ADEPTH_DEFAULT, A - 1) <= di[1] <= Acomp)
 
-    A reaction can raise the mass number by at most Aprojectile (capture of
-    the whole projectile), so a lighter target can only reach the DI if
-    Atarget + Aprojectile >= A_DI. Targets that fail either window cannot
-    produce the DI in the code; they are not run, and lighter targets
-    dropped this way are reported in `warnings`.
+
+def candidate_targets(di: Nuclide, k0: int, path: str, crosspath: str,
+                      include_radioactive: bool, warnings: list[str]) -> list[Target]:
+    """Every ground-state target in the projectile's library folder.
+
+    Targets whose residual window (see in_residual_window) does not contain the DI
+    are still returned, with in_window=False: ISOTOPIA cannot produce the DI from
+    them, so in the energy scan they give zero DI by construction, not because a
+    cross section is zero. They are run so that the cache (isotopia_py.run_cache)
+    holds them for other DIs. Isomeric targets are skipped (the input deck cannot
+    take them), and so is the DI's own ground state (its inventory is the unreacted
+    target, not production). Radioactive targets need include_radioactive.
     """
     Zdi, Adi, _ = di
     libdir = Path(crosspath) / PARSYM[k0]
@@ -171,39 +186,27 @@ def candidate_targets(di: Nuclide, k0: int, path: str, crosspath: str,
         raise SystemExit(f"cross-section library not found: {libdir}")
     pattern = re.compile(r"^([A-Z][a-z]?)(\d{3})(m|n)?$")
     symbols = [s.strip() for s in NUC]
-    targets = []
-    too_light: list[str] = []
+    targets, isomeric = [], []
     for entry in sorted(os.listdir(libdir)):
         m = pattern.match(entry)
         if not m or m.group(1) not in symbols:
             continue
         Z, A = symbols.index(m.group(1)) + 1, int(m.group(2))
-        if abs(A - Adi) > MASS_WINDOW:
-            continue
         if m.group(3):
-            warnings.append(f"{PARSYM[k0]}: isomeric target {entry} skipped "
-                            "(isotopia_py input deck cannot take isomeric targets)")
+            isomeric.append(entry)
             continue
         if (Z, A) == (Zdi, Adi) and di[2] in (0, None):
-            # The DI's own ground state as target: ISOTOPIA's inventory for it is the
-            # unreacted target (it only depletes), not production. An isomeric DI from
-            # its own ground state (e.g. Tc-99 -> Tc-99m by inelastic scattering) is kept.
+            # An isomeric DI from its own ground state (e.g. Tc-99 -> Tc-99m by
+            # inelastic scattering) is a real route and is kept
             warnings.append(f"{PARSYM[k0]}: target {entry} skipped (it is the DI itself)")
-            continue
-        Zcomp, Acomp = Z + PARZ[k0], A + PARA[k0]
-        if not Zcomp - min(ZDEPTH_DEFAULT, Z - 1) <= Zdi <= Zcomp + 1:
-            continue
-        if not Acomp - min(ADEPTH_DEFAULT, A - 1) <= Adi <= Acomp:
-            if Adi > Acomp:
-                too_light.append(entry)
             continue
         stable = A in natural_masses(path, Z)
         if not stable and not include_radioactive:
             continue
-        targets.append(Target(Z, A, stable))
-    if too_light:
-        warnings.append(f"{PARSYM[k0]}: {len(too_light)} lighter targets skipped, A + {PARA[k0]} < "
-                        f"{Adi} so they cannot reach the DI mass: {', '.join(too_light)}")
+        targets.append(Target(Z, A, stable, in_residual_window(Z, A, k0, di)))
+    if isomeric:
+        warnings.append(f"{PARSYM[k0]}: {len(isomeric)} isomeric targets skipped (isotopia_py input "
+                        f"deck cannot take isomeric targets): {', '.join(isomeric)}")
     return targets
 
 
@@ -418,6 +421,7 @@ class RunSpec:
     lines: list[str]
     exclude: set[Nuclide] = field(default_factory=set)
     molar_mass: float = 0.0      # g/mol of the DI, from molar_mass()
+    cache_dir: str | None = None # run cache folder (isotopia_py.run_cache); None = no cache
 
 
 def di_key(st: State, di: Nuclide) -> tuple[int, int, int] | None:
@@ -447,6 +451,9 @@ def precursors(st: State, di: Nuclide) -> list[tuple[int, int, int]]:
 
 
 BEAM_STOPS = "beam stops in the target"
+OUTSIDE = "outside_window"
+OUTSIDE_NOTE = ("DI outside ISOTOPIA's residual window for this target (Zcomp+1..Zcomp-10, "
+                "Acomp..Acomp-20): zero by construction of the code, not a zero cross section")
 
 
 def stop_note(st: State) -> str:
@@ -479,7 +486,8 @@ def stopping_warnings(rows: list[dict]) -> list[str]:
     list of str
         Warnings, in the order the targets first appear.
     """
-    bethe = dict.fromkeys((r["projectile"], r["target"]) for r in rows if r.get("stopping") == "bethe")
+    bethe = dict.fromkeys((r["projectile"], r["target"]) for r in rows
+                          if r.get("stopping") == "bethe" and r.get("status") != OUTSIDE)
     return [f"{p}+{t}: no SRIM stopping table (SRIM covers H to U, Z = 1-92); Eback and Leff "
             "come from the Bethe-Bloch formula, which is not valid below the energy of "
             "its maximum (it depends on projectile and target), so runs where the beam would stop in the target fail"
@@ -494,14 +502,20 @@ def run_one(spec: RunSpec) -> dict:
            "m_rate": None, "m_rate_unit": rate_unit(spec.k0),
            "m_EOI_g": None, "m_EOC_g": None, "status": "ok", "note": ""}
     try:
-        with tempfile.TemporaryDirectory() as tmp:
-            st = run(spec.lines, out=io.StringIO(), outdir=tmp)
+        st = cached_run(spec.lines, spec.cache_dir)
     except (IsotopiaError, OSError, ValueError) as exc:
-        row.update(status="error", note=" ".join(str(exc).split()))
+        msg = " ".join(str(exc).split())
+        if not t.in_window:
+            row.update(status=OUTSIDE, note=f"{OUTSIDE_NOTE}; the run also failed: {msg}")
+        else:
+            row.update(status="error", note=msg)
         return row
     if spec.k0 > 1:                                   # Eback solved by ISOTOPIA from the thickness
         row.update(Eback_MeV=float(st.Eback), Leff_cm=float(st.Leff), stopping=st.stopping_model,
                    note=stop_note(st))
+    if not t.in_window:                               # run only to fill the cache
+        row.update(status=OUTSIDE, note=OUTSIDE_NOTE)
+        return row
 
     # Exclusion: precursors that feed the DI in this run
     for pkey in precursors(st, spec.di):
@@ -862,10 +876,9 @@ def run_rates(spec: RunSpec) -> dict:
     out = {"projectile": PARSYM[spec.k0], "target": t.name, "Ebeam": spec.ebeam, "Eback": spec.eback,
            "stopping": None, "status": "ok", "note": ""}
     try:
-        with tempfile.TemporaryDirectory() as tmp:
-            # Only the target's production rates are used (StepProblem has no product
-            # hits yet), so the run's double-hit inventories would be computed for nothing
-            st = run(spec.lines + ["hits n"], out=io.StringIO(), outdir=tmp)
+        # Only the target's production rates are used (StepProblem has no product
+        # hits yet), so the run's double-hit inventories would be computed for nothing
+        st = cached_run(spec.lines + ["hits n"], spec.cache_dir)
     except (IsotopiaError, OSError, ValueError) as exc:
         out.update(status="error", note=" ".join(str(exc).split()))
         return out
@@ -1053,9 +1066,14 @@ Assumptions and limitations
 - The mass rate is per mA h of beam for charged particles; for neutrons and
   photons ISOTOPIA normalises per gram of target, so rates are not comparable
   across those groups.
-- Targets: mass number A_DI-5..A_DI+5, ground state, with a cross-section library;
-  only Z and A inside ISOTOPIA's residual window (Zcomp+1 .. Zcomp-Zdepth,
-  Acomp .. Acomp-Adepth); lighter targets need A + A_projectile >= A_DI.
+- Targets: every ground-state target in the cross-section library (radioactive
+  ones only with --include-radioactive). ISOTOPIA computes residuals only for
+  Z = Zcomp+1 .. Zcomp-10 and A = Acomp .. Acomp-20 (reacinitial.f90), so targets
+  whose window misses the DI give zero by construction; they are run to fill the
+  cache, listed as 'outside_window' and never ranked.
+- Runs are memoized (isotopia_py.run_cache): a run is reused when its input
+  lines, data folders and isotopia_py source are unchanged. The cache does not
+  notice edits to the data files themselves; delete it after updating them.
 - Charged particles: the thickness is passed to ISOTOPIA ('thickness' keyword),
   which solves Eback with its own stopping-power model: SRIM tables where they
   exist (p, d, t, h, a in H to U, Z = 1-92), otherwise Bethe-Bloch
@@ -1217,6 +1235,9 @@ def parse_args(argv=None):
     ap.add_argument("--seed", type=int, default=0, help="random seed of the step-beam optimiser (default 0)")
     ap.add_argument("--jobs", type=int, default=1, help="parallel worker processes (default 1)")
     ap.add_argument("--out", default=None, help="output directory (default runs/optimal_route/<DI>)")
+    ap.add_argument("--cache", default=str(ROOT / "runs" / "cache"),
+                    help="folder of saved ISOTOPIA runs, reused for any DI (default runs/cache)")
+    ap.add_argument("--no-cache", action="store_true", help="run every case afresh and save nothing")
     args = ap.parse_args(argv)
     if not 0 < args.emin < args.emax <= 200.0:
         ap.error("need 0 < emin < emax <= 200 MeV (library upper limit)")
@@ -1262,10 +1283,16 @@ def main(argv=None) -> int:
         k0 = PARSYM.index(p)
         targets = candidate_targets(di, k0, paths.path, paths.crosspath,
                                     args.include_radioactive, warnings)
-        if not targets:
-            warnings.append(f"{p}: no candidate targets with A = {di[1] - MASS_WINDOW}..{di[1] + MASS_WINDOW} "
-                            f"in {paths.crosspath}{p}/")
+        outside = [t.name for t in targets if not t.in_window]
+        if outside and args.steps is None:
+            warnings.append(f"{p}: {len(outside)} of {len(targets)} targets cannot produce the DI in ISOTOPIA "
+                            "(DI outside their residual window); they are run only to fill the cache and "
+                            f"appear as '{OUTSIDE}' in scan.csv")
+        if len(outside) == len(targets):
+            warnings.append(f"{p}: no library target in {paths.crosspath}{p}/ has the DI in its residual window")
         for t in targets:
+            if not t.in_window:
+                continue
             emin_lib = library_emin(paths.crosspath, k0, t)
             if emin_lib is not None and k0 != 1 and args.emin < emin_lib:
                 warnings.append(f"{p}+{t.name}: library cross sections start at {emin_lib:g} MeV; "
@@ -1273,10 +1300,12 @@ def main(argv=None) -> int:
         s, skipped = build_specs(di, k0, targets, grid, args, exclude, warnings)
         for spec in s:
             spec.molar_mass = M_di
+            spec.cache_dir = None if args.no_cache else args.cache
         specs += s
         rows += skipped
 
-    print(f"{di_name}: {len(specs)} runs on {len({(s.k0, s.target) for s in specs})} routes", file=sys.stderr)
+    print(f"{di_name}: {len(specs)} runs on {len({(s.k0, s.target) for s in specs})} routes "
+          f"(cache: {'off' if args.no_cache else args.cache})", file=sys.stderr)
     if args.steps is not None:
         print(run_step_search(args, di, di_name, M_di, specs, exclude, warnings, paths.path))
         return 0
