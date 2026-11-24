@@ -186,6 +186,7 @@ def read_keywords(st: State) -> None:
     st.targetmass_input = S(-1)
     st.fluxtotal = S(1e14)
     st.flagdecay = True
+    st.flaghits = not st.fortran_defaults      # not in the Fortran: double hitting
     st.flagZAoutput = False
     st.flagcross = False
     st.flagselfshield = True
@@ -267,7 +268,7 @@ def read_keywords(st: State) -> None:
                 st.yieldunit = read_char(val, 3, st.yieldunit)
             elif key == "currentunit":
                 st.currentunit = read_char(val, 3, st.currentunit)
-            elif key in ("zaoutput", "selfshield", "outcross", "decay"):
+            elif key in ("zaoutput", "selfshield", "outcross", "decay", "hits"):
                 if ch not in ("y", "n"):
                     raise _read_error(line)
                 flag = ch == "y"
@@ -277,6 +278,8 @@ def read_keywords(st: State) -> None:
                     st.flagselfshield = flag
                 elif key == "outcross":
                     st.flagcross = flag
+                elif key == "hits":
+                    st.flaghits = flag
                 else:
                     st.flagdecay = flag
             elif key in ("tirrad", "tcool"):
@@ -334,7 +337,7 @@ def read_keywords(st: State) -> None:
 
 _KEYWORDS = {
     "", "abundance", "adepth", "area", "crosspath", "currentunit", "decay", "eback", "ebeam",
-    "element", "fgamma", "fluxtotal", "format", "ibeam", "mass", "massunit", "outcross",
+    "element", "fgamma", "fluxtotal", "format", "hits", "ibeam", "mass", "massunit", "outcross",
     "layer", "projectile", "radiounit", "rho", "selfshield", "source", "stopping", "targetmass",
     "thickness",
     "timeunit", "tirrad", "tcool", "user", "xsfile", "yieldunit", "zaoutput", "zdepth",
@@ -618,6 +621,9 @@ def inputout(st: State) -> None:
       + "     Adepth       depth to which A numbers are scanned for cross sections")
     w(" decay               " + yesno(st.flagdecay)
       + "     flagdecay    flag to include decay of nuclides (n only for diagnosis) ")
+    if not st.fortran_defaults:     # not in the Fortran
+        w(" hits                " + yesno(st.flaghits)
+          + "     flaghits     flag to hit reaction products with the beam (double hitting)")
     w()
 
 

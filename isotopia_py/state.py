@@ -93,6 +93,10 @@ class State:
     # Main input
     flagnatural: bool = False
     flagdecay: bool = True
+    # Not in the Fortran: hit products too (keyword 'hits'). The input deck turns it on by
+    # default for every run (off with fortran_defaults); a State built by hand stays single-hit.
+    flaghits: bool = False
+    hits_report: dict | None = None       # double hitting: missing cross sections, warnings
     flagcross: bool = False
     flagZAoutput: bool = False
     flagselfshield: bool = True

@@ -343,7 +343,8 @@ def test_step_solver_matches_isotopia_for_unfed_products(tmp_path):
     ISOTOPIA). Checks every such product of p + Mo-100 at 20 MeV."""
     paths = _paths()
     lines = _proton_lines("Mo", 100, 20.0)
-    st = opt.run(lines, out=io.StringIO(), outdir=str(tmp_path))
+    # The step solver hits only the target: compare with ISOTOPIA's single-hit run
+    st = opt.run(lines + ["hits n"], out=io.StringIO(), outdir=str(tmp_path))
     target = (42, 100, 0)
     P, P_T = opt.production_states(st, target)
     lib = opt.DecayLibrary(paths.path)

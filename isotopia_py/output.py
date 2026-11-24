@@ -237,8 +237,67 @@ def prodout(st: State) -> None:
                  st.Niso[key][it], st.Nisorel[key][it], st.Tgrid[it] / HOURSEC)
                 for it in range(1, NUMTIME + 1)]
         _write_act(st, Yfile, key, finalnuclide, params, rows)
+    if st.flaghits:
+        hits_out(st)
     w()
     w("  End of ISOTOPIA calculation for " + a(st.ptype0, 1) + " + " + st.targetnuclide.rstrip())
+
+
+MISSING_XS_FILE = "missing_cross_sections.txt"
+
+
+def _half_life_text(half_life) -> str:
+    """Half-life for the double-hitting report: 'stable', 'no decay data' or seconds."""
+    if half_life is None:
+        return "no decay data"
+    if half_life == float("inf"):
+        return "stable"
+    return f"{half_life:.4e} s ({half_life / 86400.0:.4g} d)"
+
+
+def hits_out(st: State) -> None:
+    """Not in the Fortran: double-hitting summary and missing cross sections.
+
+    Written to the main output after the products of each target isotope. Nuclides in the
+    window with no cross sections are listed in ``missing_cross_sections.txt`` when they
+    are stable, live a day or longer, or have no decay data (missing library data); those
+    living less than a day are only counted (the library does not cover such targets, so
+    they are assumed not to be hit). For a natural target the file collects every isotope.
+    """
+    from .daughters import SHORT_LIVED, port_window
+    from .decaylib import label
+    w = st.write
+    rep = st.hits_report or {}
+    w()
+    w(" Double hitting (not in the Fortran): reaction products inside the window are hit by")
+    w(" the beam too; decay follows the full decay network (keyword 'hits n' turns it off)")
+    if "error" in rep:
+        w(" ISOTOPIA-warning: double hitting not applied, the results above are single-hit:")
+        w("   " + " ".join(rep["error"].split()))
+        return
+    win = port_window(st)
+    w(f"   Window: Z {st.Ztarget - win.Z_below} to {st.Ztarget + win.Z_above},"
+      f" A {st.Atarget - win.A_below} to {st.Atarget + win.A_above} (Zdepth, Adepth)")
+    w(f"   Nuclides hit by the beam (target included): {rep.get('hit', 0)}")
+    short, missing = rep.get("short_lived", []), rep.get("missing", [])
+    w(f"   Not hit, half-life below {SHORT_LIVED / 86400.0:g} d and no cross sections"
+      f" (expected): {len(short)}")
+    if missing:
+        w(f" ISOTOPIA-warning: missing cross sections for {len(missing)} nuclide(s) that are"
+          f" stable or live {SHORT_LIVED / 86400.0:g} d or longer; they are not hit (also in"
+          f" {MISSING_XS_FILE}):")
+        for n, half_life in missing:
+            w(f"   {label(n):10s} {_half_life_text(half_life)}")
+    else:
+        w("   Missing cross sections: none")
+    mode = "w" if st.iso == 1 else "a"
+    with open(os.path.join(st.outdir, MISSING_XS_FILE), mode, encoding="utf-8", newline="\n") as fh:
+        if st.iso == 1:
+            fh.write("# Nuclides in the double-hitting window with no cross sections in the library\n"
+                     "# that are stable, live a day or longer, or have no decay data: not hit.\n"
+                     "# target  nuclide  half-life\n")
+        for n, half_life in missing:
+            fh.write(f"{st.targetnuclide.strip():8s} {label(n):10s} {_half_life_text(half_life)}\n")
 
 
 def _product_keys(st: State) -> list[tuple[int, int, int]]:

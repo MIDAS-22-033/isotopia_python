@@ -51,13 +51,22 @@ library is hit. Reaction products outside it go to one bin, ``OUTSIDE``
 ("outside_window"), so their atoms are counted; a warning gives each one's
 rate. Decay is always followed, inside the window or not.
 
-The library has unstable nuclides as targets only if they live about a day
-or longer (shortest found: 8.75e4 s), plus some long-lived isomers. Other
-nuclides in the window cannot be hit; a warning lists them.
+Every nuclide in the window that has cross sections in the library is hit,
+whatever its half-life. The library has unstable nuclides as targets only if
+they live about a day or longer (shortest found: 8.75e4 s), plus some
+long-lived isomers. A nuclide without cross sections is therefore treated in
+one of two ways (team decision, 22 Nov 2026):
+
+* unstable with a half-life below one day (``SHORT_LIVED``): it is assumed
+  not to be hit, as the library does not cover such targets;
+* stable, living a day or longer, or without decay data: its cross sections
+  are missing from the library. It is not hit either, but it is reported
+  with the outputs (``report["missing"]``, and the warnings).
 """
 from __future__ import annotations
 
 import copy
+import functools
 import os
 import re
 from collections import deque
@@ -78,8 +87,23 @@ from .rates import _charged_particle_spectrum, _read_neutron_spectrum, _read_pho
 GRID_RTOL = 1e-5
 # Report product rates that differ from the burnup rate by more than this.
 BALANCE_TOL = 1e-3
+# Unstable nuclides living shorter than this [s] are not expected in the library as
+# targets: without cross sections they are assumed not to be hit, and not reported.
+SHORT_LIVED = 86400.0
 
 _STATE_LETTER = {"": None, "g": 0, "m": 1, "n": 2}
+
+
+@functools.lru_cache(maxsize=None)
+def _xs_table(path: str) -> tuple[np.ndarray, np.ndarray]:
+    """Energies [MeV] and cross sections [mb] of one library table, read once per process.
+
+    Double hitting reads thousands of tables per run, and repeated runs (natural targets,
+    energy scans) read the same ones again; the arrays are read-only.
+    """
+    E, xs = (np.asarray(v, dtype=float) for v in _read_xs_table(path))
+    E.flags.writeable = xs.flags.writeable = False
+    return E, xs
 
 
 class RateGridError(RuntimeError):
@@ -244,11 +268,11 @@ def _channel_rates(st, grid: RateGrid, nuclide: Nuclide):
     path = burnup_file(st, nuclide)
     if not os.path.isfile(path):
         return None
-    loss = grid.rate(*_read_xs_table(path))
+    loss = grid.rate(*_xs_table(path))
     files, split_totals = _residual_files(st, nuclide)
     products, own, by_za = {}, 0.0, {}
     for product, path in files.items():
-        rate = grid.rate(*_read_xs_table(path))
+        rate = grid.rate(*_xs_table(path))
         by_za[product[:2]] = by_za.get(product[:2], 0.0) + rate
         if product == nuclide:
             own = rate
@@ -256,7 +280,7 @@ def _channel_rates(st, grid: RateGrid, nuclide: Nuclide):
             products[product] = rate
     split = {}
     for za, path in split_totals.items():
-        total = grid.rate(*_read_xs_table(path))
+        total = grid.rate(*_xs_table(path))
         if total > 0:
             split[za] = by_za.get(za, 0.0) / total
     return loss, products, own, split
@@ -305,7 +329,7 @@ def check_rate_grid(st, grid: RateGrid) -> None:
             checks[(z, a, is_)] = (f"{folder}residual/{PARSYM[st.k0]}-{_name(target)}-rp"
                                    f"{z:03d}{a:03d}{letter}.{st.libname}")
     for key, path in checks.items():
-        mine, port = grid.rate(*_read_xs_table(path)), float(st.reaction_rate[key])
+        mine, port = grid.rate(*_xs_table(path)), float(st.reaction_rate[key])
         if abs(mine - port) > GRID_RTOL * abs(port):
             raise RateGridError(f"rebuilt weights give {mine:.7e} s^-1 for {key} ({path}); "
                                 f"the port computed {port:.7e} s^-1")
@@ -354,8 +378,29 @@ def _keep_inside(rx: Reactions, target: Nuclide, window: Window, lost: dict) -> 
     return Reactions(rx.loss, products)
 
 
+def classify_no_data(nuclides, library) -> tuple[list, list]:
+    """Split nuclides without cross sections into (short_lived, missing).
+
+    short_lived: unstable with a half-life below ``SHORT_LIVED`` (one day): the library
+    does not cover such targets, so they are assumed not to be hit. missing: stable,
+    living a day or longer, or without decay data: their cross sections are missing
+    from the library and are reported. Each entry is (nuclide, half-life [s]), the
+    half-life ``math.inf`` for stable and ``None`` without decay data; both lists sorted.
+    """
+    short_lived, missing = [], []
+    for n in sorted(nuclides):
+        d = library.get(n)
+        half_life = None if d is None else d.half_life
+        if half_life is not None and half_life < SHORT_LIVED:
+            short_lived.append((n, half_life))
+        else:
+            missing.append((n, half_life))
+    return short_lived, missing
+
+
 def hit_reactions(st, irr: Irradiation, window: Window,
-                  library: DecayLibrary | None = None) -> tuple[dict[Nuclide, Reactions], list[str]]:
+                  library: DecayLibrary | None = None,
+                  report: dict | None = None) -> tuple[dict[Nuclide, Reactions], list[str]]:
     """Reactions of every nuclide the beam can hit inside the window.
 
     Starting from the target, follows reaction products and decay daughters.
@@ -373,6 +418,13 @@ def hit_reactions(st, irr: Irradiation, window: Window,
         Network limit around the target.
     library : DecayLibrary, optional
         Decay data, to follow decay daughters. Default: the ISOTOPIA library.
+    report : dict, optional
+        Filled with the nuclides in the window that have no cross sections:
+        ``"short_lived"`` (unstable, half-life below ``SHORT_LIVED``: assumed not
+        hit) and ``"missing"`` (stable, longer-lived or without decay data:
+        missing from the library), each a sorted list of (nuclide, half-life [s]),
+        with ``math.inf`` for stable and ``None`` for no decay data; and
+        ``"hit"``, the number of nuclides hit (the target included).
 
     Returns
     -------
@@ -418,12 +470,25 @@ def hit_reactions(st, irr: Irradiation, window: Window,
         reactions[n] = _keep_inside(Reactions(loss, products), target, window, lost)
         queue.extend(reactions[n].products)
 
+    # Nuclides without cross sections: short-lived ones are not expected in the
+    # library; the others are reported as missing data.
+    short_lived, missing = classify_no_data(no_data, library)
+    if report is not None:
+        report.update(short_lived=short_lived, missing=missing, hit=len(reactions))
+
     # Warnings: what is not hit, what leaves the window, what does not balance.
     warnings = []
-    if no_data:
-        warnings.append(f"Truncated chain: no cross sections in {st.crosspath.rstrip()}"
-                        f"{PARSYM[st.k0]}/ for {len(no_data)} nuclide(s) in the window, which "
-                        f"are therefore not hit: {', '.join(label(n) for n in sorted(no_data))}.")
+    library_dir = f"{st.crosspath.rstrip()}{PARSYM[st.k0]}/"
+    if missing:
+        warnings.append(f"Missing cross sections: {len(missing)} nuclide(s) in the window that "
+                        f"are stable or live a day or longer have no cross sections in "
+                        f"{library_dir} and are therefore not hit: "
+                        f"{', '.join(label(n) for n, _ in missing)}.")
+    if short_lived:
+        warnings.append(f"Short-lived: {len(short_lived)} nuclide(s) in the window live less "
+                        f"than a day and have no cross sections in {library_dir}, so they are "
+                        f"not hit (expected: the library does not cover such targets): "
+                        f"{', '.join(label(n) for n, _ in short_lived)}.")
     if lost:
         warnings.append("Truncated chain: products outside the window are collected in "
                         "'outside_window' (largest rate per product, s^-1): "
@@ -449,8 +514,21 @@ def hit_reactions(st, irr: Irradiation, window: Window,
     return reactions, warnings
 
 
+def port_window(st) -> Window:
+    """The port's own window (Zdepth, Adepth) around the target, as a ``Window``.
+
+    ISOTOPIA tracks Z from Zcomp+1 down to Zcomp+1-Zdepth and A from Acomp down to
+    Acomp-Adepth (equations.f90); this is the default network for double hitting, so
+    every nuclide the port writes out can be hit and nothing outside it is tracked.
+    """
+    z_lo, z_hi = st.Zcomp + 1 - st.Zdepth, st.Zcomp + 1
+    a_lo, a_hi = st.Acomp - st.Adepth, st.Acomp
+    return Window(A_below=max(st.Atarget - a_lo, 0), A_above=max(a_hi - st.Atarget, 0),
+                  Z_below=max(st.Ztarget - z_lo, 0), Z_above=max(z_hi - st.Ztarget, 0))
+
+
 def irradiate_with_hits(st, window: Window, times=None, library: DecayLibrary | None = None,
-                        on_missing: str = "error") -> Inventory:
+                        on_missing: str = "error", report: dict | None = None) -> Inventory:
     """Irradiation and cooling with every nuclide in the window hit by the beam.
 
     Parameters
@@ -465,6 +543,8 @@ def irradiate_with_hits(st, window: Window, times=None, library: DecayLibrary | 
         Decay data. Default: the ISOTOPIA decay library.
     on_missing : {'error', 'warn'}
         Handling of nuclides absent from the decay library.
+    report : dict, optional
+        Filled as in ``hit_reactions`` (missing and short-lived cross sections).
 
     Returns
     -------
@@ -474,12 +554,13 @@ def irradiate_with_hits(st, window: Window, times=None, library: DecayLibrary | 
     """
     library = library or DecayLibrary()
     irr = Irradiation.from_state(st)
-    reactions, warnings = hit_reactions(st, irr, window, library)
+    reactions, warnings = hit_reactions(st, irr, window, library, report)
     inv = irradiate(irr, isotopia_times(st) if times is None else times, library, on_missing,
                     reactions=reactions)
     inv.warnings.extend(warnings)
     return inv
 
 
-__all__ = ["RateGrid", "RateGridError", "Window", "burnup_file", "check_rate_grid", "hit_reactions",
-           "irradiate_with_hits", "nuclide_reactions", "rate_grid", "tables_dir"]
+__all__ = ["SHORT_LIVED", "RateGrid", "RateGridError", "Window", "burnup_file", "check_rate_grid",
+           "classify_no_data", "hit_reactions", "irradiate_with_hits", "nuclide_reactions", "port_window", "rate_grid",
+           "tables_dir"]

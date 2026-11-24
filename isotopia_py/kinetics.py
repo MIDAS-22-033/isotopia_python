@@ -23,9 +23,87 @@ from .state import State
 
 
 def equations(st: State) -> None:
-    """Number of nuclides of each product on the time grid."""
+    """Number of nuclides of each product on the time grid.
+
+    The port of equations.f90 always runs first: it sets the time grid, N_0 and the
+    bookkeeping. With double hitting (``st.flaghits``, the default; keyword 'hits'),
+    the inventories are then replaced by those of the matrix solver with every nuclide
+    in the window hit by the beam (``_equations_hits``).
+    """
     with np.errstate(all="ignore"):
         _equations(st)
+        st.hits_report = None
+        if st.flaghits:
+            _equations_hits(st)
+
+
+def _equations_hits(st: State) -> None:
+    """Not in the Fortran: inventories with double hitting (daughters.irradiate_with_hits).
+
+    Every nuclide inside the port's window (Zdepth, Adepth) that has cross sections in
+    the library is hit by the beam; decay follows the full decay network. The results
+    go into the same arrays as the port's equations (Niso, Nisotot, Nisorel, Yexist, Tmax),
+    so activities, output files and natural-target merging are unchanged. Nuclides with
+    isomers get their states and, as the total, the sum of the states; the others get the
+    sum of all their states as the total.
+
+    If the rebuilt rate weights do not reproduce the port's rates
+    (daughters.RateGridError), the port's own inventories are kept and the reason is
+    stored for the output.
+    """
+    from .daughters import RateGridError, irradiate_with_hits, port_window
+    report: dict = {}
+    try:
+        inv = irradiate_with_hits(st, port_window(st), times=[float(t) for t in st.Tgrid],
+                                  on_missing="warn", report=report)
+    except RateGridError as exc:
+        st.hits_report = {"error": str(exc)}
+        return
+    report["warnings"] = list(inv.warnings)
+    st.hits_report = report
+    by_za: dict[tuple[int, int], list] = {}
+    for k, n in enumerate(inv.nuclides):
+        by_za.setdefault((n[0], n[1]), []).append((n[2], inv.atoms[:, k]))
+    zeros = np.zeros(NUMTIME + 1)
+
+    R_T = float(st.reaction_rate[(0, 0, -1)])
+    Zcomp, Acomp = st.Zcomp, st.Acomp
+    for iz in range(Zcomp + 1, Zcomp + 1 - st.Zdepth - 1, -1):
+        Nisotot = st.Nisotot[iz]
+        Nisotot[:] = 0
+        for ia in range(Acomp, Acomp - st.Adepth - 1, -1):
+            found = by_za.get((iz, ia), [])
+            total = sum((a for _, a in found), zeros)
+            for is_ in range(-1, st.Nisomer[(iz, ia)] + 1):
+                key = (iz, ia, is_)
+                values = total if is_ == -1 else sum((a for s, a in found if s == is_), zeros)
+                Niso = st.Niso[key]
+                Niso[:] = values
+                exists = bool((Niso[1:] > 0).any())
+                st.Yexist[key] = exists
+                if exists:
+                    st.Ynatexist[key] = True
+                Nisotot += Niso
+                st.Tmaxactivity[key] = 0
+                if not exists:
+                    st.Tmax[key] = S(0)
+                    st.Tp[key] = [0] * 6
+                    continue
+                lambda_i = float(st.lam[key])
+                if lambda_i > 0.0 and R_T > 0.0 and lambda_i != R_T:
+                    st.Tmax[key] = S(math.log(lambda_i / R_T) / (lambda_i - R_T))
+                else:
+                    st.Tmax[key] = S(1.0e30)
+                st.Tp[key] = [0] + time_breakdown(float(st.Tmax[key]), YEARSEC, DAYSEC, HOURSEC,
+                                                  MINUTESEC, single=False)
+        for ia in range(Acomp, Acomp - st.Adepth - 1, -1):
+            for is_ in range(-1, st.Nisomer[(iz, ia)] + 1):
+                key = (iz, ia, is_)
+                Nisorel = st.Nisorel[key]
+                Nisorel[:] = 0
+                if st.Yexist[key]:
+                    nz = Nisotot != 0
+                    Nisorel[nz] = st.Niso[key][nz] / Nisotot[nz]
 
 
 def _equations(st: State) -> None:
