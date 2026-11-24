@@ -40,7 +40,7 @@ from .inputdeck import data_directories
 from .run import run
 from .state import Defaulted, IsotopiaError, State, TimeArrays
 
-CACHE_FORMAT = 1
+CACHE_FORMAT = 2  # 2: activity, lam and ISOTOPIA warnings added
 
 # Scalar State attributes kept in a snapshot (units as in State: MeV, cm, mA, g, s, atoms)
 _SCALARS = ("k0", "Eback", "Leff", "Ibeam", "M_target", "N_0", "Tir", "Tco", "Ntime")
@@ -61,7 +61,9 @@ class RunSnapshot:
 
     Attributes: k0, Eback [MeV], Leff [cm], Ibeam [mA], M_target [g], N_0 [atoms],
     Tir, Tco [s], Ntime, Tgrid [s], stopping_model, beam_stops, Niso [atoms over
-    time], reaction_rate [s^-1 per target atom], rpexist, rtyp, Nisomer.
+    time], activity [Bq over time, lam * N from kinetics.activities], lam [s^-1],
+    reaction_rate [s^-1 per target atom], rpexist, rtyp, Nisomer, run_warnings
+    (the run's ISOTOPIA-warning messages, see isotopia_warnings).
     """
 
     def __init__(self, arrays: dict[str, np.ndarray]):
@@ -70,13 +72,26 @@ class RunSnapshot:
         self.Tgrid = arrays["Tgrid"]
         self.stopping_model = str(arrays["stopping_model"])
         self.beam_stops = bool(arrays["beam_stops"])
-        self.Niso = TimeArrays(
-            zip(map(tuple, arrays["niso_keys"].tolist()), arrays["niso"])
-        )
+        self.Niso = _time_arrays(arrays["niso_keys"], arrays["niso"])
+        self.activity = _time_arrays(arrays["act_keys"], arrays["act"])
+        self.lam = _defaulted(np.float32(0), arrays["lam_keys"], arrays["lam"])
         self.reaction_rate = _defaulted(np.float32(0), arrays["rr_keys"], arrays["rr"])
         self.rpexist = _defaulted(False, arrays["rp_keys"], arrays["rp"].astype(bool))
         self.rtyp = _defaulted(0, arrays["rtyp_keys"], arrays["rtyp"])
         self.Nisomer = _defaulted(-1, arrays["niso_za"], arrays["nisomer"])
+        self.run_warnings = [str(w) for w in arrays["warnings"]]
+
+
+def _time_arrays(keys: np.ndarray, rows: np.ndarray) -> TimeArrays:
+    """TimeArrays from an (n, 3) key array and an (n, NUMTIME + 1) array of rows."""
+    return TimeArrays(zip(map(tuple, keys.tolist()), rows))
+
+
+def _split_time(d: TimeArrays) -> tuple[np.ndarray, np.ndarray]:
+    """TimeArrays -> ((n, 3) keys, (n, NUMTIME + 1) float32 rows)."""
+    keys = list(d.keys())
+    rows = np.array([d[k] for k in keys], dtype=np.float32).reshape(len(keys), -1)
+    return np.array(keys, dtype=np.int64).reshape(-1, 3), rows
 
 
 def _defaulted(default, keys: np.ndarray, values: np.ndarray) -> Defaulted:
@@ -103,16 +118,31 @@ def snapshot_arrays(st: State) -> dict[str, np.ndarray]:
     out["Tgrid"] = np.asarray(st.Tgrid)
     out["stopping_model"] = np.asarray(getattr(st, "stopping_model", ""))
     out["beam_stops"] = np.asarray(bool(getattr(st, "beam_stops", False)))
-    keys = list(st.Niso.keys())
-    out["niso_keys"] = np.array(keys, dtype=np.int64).reshape(-1, 3)
-    out["niso"] = np.array([st.Niso[k] for k in keys], dtype=np.float32).reshape(
-        len(keys), -1
-    )
+    out["niso_keys"], out["niso"] = _split_time(st.Niso)
+    out["act_keys"], out["act"] = _split_time(st.activity)
+    out["lam_keys"], out["lam"] = _split(st.lam, 3, np.float32)
     out["rr_keys"], out["rr"] = _split(st.reaction_rate, 3, np.float32)
     out["rp_keys"], out["rp"] = _split(st.rpexist, 3, bool)
     out["rtyp_keys"], out["rtyp"] = _split(st.rtyp, 3, np.int64)
     out["niso_za"], out["nisomer"] = _split(st.Nisomer, 2, np.int64)
+    out["warnings"] = np.array(getattr(st, "run_warnings", []), dtype=str)
     return out
+
+
+def isotopia_warnings(text: str) -> list[str]:
+    """ISOTOPIA-warning messages in a run's output, each joined with its indented
+    detail lines (e.g. the list of nuclides with missing cross sections)."""
+    messages: list[list[str]] = []
+    current = None
+    for line in text.splitlines():
+        if "ISOTOPIA-warning" in line:
+            current = [line.strip()]
+            messages.append(current)
+        elif current is not None and line.startswith("   ") and line.strip():
+            current.append(line.strip())
+        else:
+            current = None
+    return list(dict.fromkeys(" ".join(" ".join(m).split()) for m in messages))
 
 
 # ----------------------------------------------------------------------------
@@ -213,6 +243,10 @@ def cached_run(
 
 
 def _fresh(lines: list[str]) -> State:
-    """One isotopia_py run in a throwaway output folder."""
+    """One isotopia_py run in a throwaway output folder; its ISOTOPIA-warning
+    messages are kept as ``st.run_warnings``."""
+    out = io.StringIO()
     with tempfile.TemporaryDirectory() as tmp:
-        return run(lines, out=io.StringIO(), outdir=tmp)
+        st = run(lines, out=out, outdir=tmp)
+    st.run_warnings = isotopia_warnings(out.getvalue())
+    return st

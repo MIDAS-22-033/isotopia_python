@@ -35,6 +35,8 @@ one `State` object instead of global arrays.
 | `isotopia_py/isotopia_compat.py` | `equations.f90` | ISOTOPIA-compatible mode: the port's equations, defects included, as one matrix exponential (for validation) |
 | `isotopia_py/srim.py`, `isotopia_py/srim_tables/` | – (new) | SRIM stopping tables for `p`, `d`, `t`, `h` and `a` in the 92 elements from H to U, converted to MeV/cm; the default stopping power (see items 7 and 9 below) |
 | `isotopia_py/energyloss.py` | – (new) | energy loss through a layer: thickness from (E_in, E_out) and exit energy from (E_in, thickness); used for the `thickness` input (see items 8 and 9 below) |
+| `isotopia_py/run_cache.py` | – (new) | on-disk memoization of runs: a run is saved once and reused for any DI with the same input, data folders and code |
+| `scripts/sweep_all_di.py` | – (new) | one run per projectile, library target and beam energy; tables of every product as a DI (full table, best energy per route, best route per DI); `--estimate N` projects run time and disk use |
 
 ## Setup
 

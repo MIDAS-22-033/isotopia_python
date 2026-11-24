@@ -168,19 +168,13 @@ def in_residual_window(Z: int, A: int, k0: int, di: Nuclide) -> bool:
             and Acomp - min(ADEPTH_DEFAULT, A - 1) <= di[1] <= Acomp)
 
 
-def candidate_targets(di: Nuclide, k0: int, path: str, crosspath: str,
-                      include_radioactive: bool, warnings: list[str]) -> list[Target]:
+def library_targets(k0: int, path: str, crosspath: str, include_radioactive: bool,
+                    warnings: list[str]) -> list[Target]:
     """Every ground-state target in the projectile's library folder.
 
-    Targets whose residual window (see in_residual_window) does not contain the DI
-    are still returned, with in_window=False: ISOTOPIA cannot produce the DI from
-    them, so in the energy scan they give zero DI by construction, not because a
-    cross section is zero. They are run so that the cache (isotopia_py.run_cache)
-    holds them for other DIs. Isomeric targets are skipped (the input deck cannot
-    take them), and so is the DI's own ground state (its inventory is the unreacted
-    target, not production). Radioactive targets need include_radioactive.
+    Isomeric targets are skipped (the input deck cannot take them) and reported in
+    `warnings`; radioactive targets (no natural abundance) need include_radioactive.
     """
-    Zdi, Adi, _ = di
     libdir = Path(crosspath) / PARSYM[k0]
     if not libdir.is_dir():
         raise SystemExit(f"cross-section library not found: {libdir}")
@@ -191,22 +185,39 @@ def candidate_targets(di: Nuclide, k0: int, path: str, crosspath: str,
         m = pattern.match(entry)
         if not m or m.group(1) not in symbols:
             continue
-        Z, A = symbols.index(m.group(1)) + 1, int(m.group(2))
         if m.group(3):
             isomeric.append(entry)
             continue
-        if (Z, A) == (Zdi, Adi) and di[2] in (0, None):
-            # An isomeric DI from its own ground state (e.g. Tc-99 -> Tc-99m by
-            # inelastic scattering) is a real route and is kept
-            warnings.append(f"{PARSYM[k0]}: target {entry} skipped (it is the DI itself)")
-            continue
+        Z, A = symbols.index(m.group(1)) + 1, int(m.group(2))
         stable = A in natural_masses(path, Z)
-        if not stable and not include_radioactive:
-            continue
-        targets.append(Target(Z, A, stable, in_residual_window(Z, A, k0, di)))
+        if stable or include_radioactive:
+            targets.append(Target(Z, A, stable))
     if isomeric:
         warnings.append(f"{PARSYM[k0]}: {len(isomeric)} isomeric targets skipped (isotopia_py input "
                         f"deck cannot take isomeric targets): {', '.join(isomeric)}")
+    return targets
+
+
+def candidate_targets(di: Nuclide, k0: int, path: str, crosspath: str,
+                      include_radioactive: bool, warnings: list[str]) -> list[Target]:
+    """Every ground-state library target (library_targets), labelled for one DI.
+
+    Targets whose residual window (see in_residual_window) does not contain the DI
+    are still returned, with in_window=False: ISOTOPIA cannot produce the DI from
+    them, so in the energy scan they give zero DI by construction, not because a
+    cross section is zero. They are run so that the cache (isotopia_py.run_cache)
+    holds them for other DIs. The DI's own ground state is skipped (its inventory
+    is the unreacted target, not production).
+    """
+    Zdi, Adi, _ = di
+    targets = []
+    for t in library_targets(k0, path, crosspath, include_radioactive, warnings):
+        if (t.Z, t.A) == (Zdi, Adi) and di[2] in (0, None):
+            # An isomeric DI from its own ground state (e.g. Tc-99 -> Tc-99m by
+            # inelastic scattering) is a real route and is kept
+            warnings.append(f"{PARSYM[k0]}: target {nuc(t.Z).strip()}{t.A:03d} skipped (it is the DI itself)")
+            continue
+        targets.append(Target(t.Z, t.A, t.stable, in_residual_window(t.Z, t.A, k0, di)))
     return targets
 
 
@@ -530,21 +541,46 @@ def run_one(spec: RunSpec) -> dict:
                    note="no positive DI cross section between Eback and Ebeam for this target")
         return row
 
-    # Masses from ISOTOPIA's atom counts N_DI(t) (st.Niso, kinetics.equations):
-    # m = N * M / N_A. Atom counts exist for stable and radioactive nuclides alike.
-    N = st.Niso[key]
-    g_per_atom = spec.molar_mass / float(AVOGADRO)
-    i_eoc = NUMTIME if st.Tco > 0 else st.Ntime   # with Tcool = 0 there is no cooling grid
-    row["m_EOI_g"] = float(N[st.Ntime]) * g_per_atom
-    row["m_EOC_g"] = float(N[i_eoc]) * g_per_atom
-
-    # Initial mass production rate: slope of N over the first time step, the
-    # same finite difference ISOTOPIA uses for its activity yield (kinetics.activities),
-    # normalised the same way: per mA of beam (charged) or per g of target (n, g).
-    dt_h = float(st.Tgrid[1] - st.Tgrid[0]) / 3600.0
-    per = float(st.Ibeam) * 1e3 if spec.k0 > 1 else float(st.M_target)   # mA or g
-    row["m_rate"] = float(N[1] - N[0]) * g_per_atom / (per * dt_h)
+    row["m_rate"], row["m_EOI_g"], row["m_EOC_g"] = mass_outputs(st, key, spec.molar_mass)
     return row
+
+
+def eoc_index(st) -> int:
+    """Time index of end of cooling (with Tcool = 0 there is no cooling grid: EOI)."""
+    return NUMTIME if st.Tco > 0 else st.Ntime
+
+
+def mass_outputs(st, key: tuple[int, int, int], molar_mass: float) -> tuple[float, float, float]:
+    """Mass production rate and masses at EOI and end of cooling for one nuclide.
+
+    Masses come from ISOTOPIA's atom counts N(t) (st.Niso, kinetics.equations):
+    m = N M / N_A, which exist for stable and radioactive nuclides alike. The rate is
+    the slope of N over the first time step, the same finite difference ISOTOPIA uses
+    for its activity yield (kinetics.activities), normalised the same way: per mA of
+    beam for charged particles, per g of target for n and g.
+
+    Parameters
+    ----------
+    st : State or RunSnapshot
+        A finished run.
+    key : (Z, A, is)
+        ISOTOPIA nuclide key (is = -1 for a nuclide without isomers).
+    molar_mass : float
+        g/mol of the nuclide (molar_mass()).
+
+    Returns
+    -------
+    m_rate : float
+        g/(mA h) for charged particles, g/(g h) for n and g (rate_unit()).
+    m_EOI, m_EOC : float
+        g at end of irradiation and end of cooling.
+    """
+    N = st.Niso[key]
+    g_per_atom = molar_mass / float(AVOGADRO)
+    dt_h = float(st.Tgrid[1] - st.Tgrid[0]) / 3600.0
+    per = float(st.Ibeam) * 1e3 if st.k0 > 1 else float(st.M_target)   # mA or g
+    return (float(N[1] - N[0]) * g_per_atom / (per * dt_h),
+            float(N[st.Ntime]) * g_per_atom, float(N[eoc_index(st)]) * g_per_atom)
 
 
 def rate_unit(k0: int) -> str:

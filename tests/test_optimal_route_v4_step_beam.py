@@ -501,12 +501,13 @@ def test_snapshot_matches_state(tmp_path):
     st = run_cache.cached_run(lines, tmp_path)
     snap = run_cache.cached_run(lines, tmp_path)
     assert isinstance(snap, run_cache.RunSnapshot)
-    for name in run_cache._SCALARS + ("stopping_model", "beam_stops"):
+    for name in run_cache._SCALARS + ("stopping_model", "beam_stops", "run_warnings"):
         assert getattr(snap, name) == getattr(st, name), name
     assert np.array_equal(snap.Tgrid, st.Tgrid)
-    assert set(snap.Niso) == set(st.Niso)
-    assert all(np.array_equal(snap.Niso[k], st.Niso[k]) for k in st.Niso)
-    for name in ("reaction_rate", "rpexist", "rtyp", "Nisomer"):
+    for name in ("Niso", "activity"):
+        assert set(getattr(snap, name)) == set(getattr(st, name)), name
+        assert all(np.array_equal(getattr(snap, name)[k], getattr(st, name)[k]) for k in getattr(st, name))
+    for name in ("reaction_rate", "rpexist", "rtyp", "Nisomer", "lam"):
         assert dict(getattr(snap, name)) == dict(getattr(st, name)), name
     assert snap.Nisomer[(1, 1)] == -1 and snap.reaction_rate[(1, 1, 5)] == 0   # State's defaults
 
@@ -551,3 +552,12 @@ def test_target_outside_window_is_labelled_not_ranked(tmp_path):
     assert row["status"] == opt.OUTSIDE and "not a zero cross section" in row["note"]
     assert row["Leff_cm"] == pytest.approx(0.05, rel=1e-3)       # the run itself happened
     assert len(list(tmp_path.rglob("*.npz"))) == 1
+
+
+def test_isotopia_warnings_parser():
+    text = (" Header\n ISOTOPIA-warning: missing cross sections for 2 nuclide(s):\n"
+            "   Nb97       stable\n   Zr95       5.5e+06 s\n Next block\n"
+            "   indented but not a warning\n ISOTOPIA-warning: no SRIM stopping table\n")
+    assert run_cache.isotopia_warnings(text) == [
+        "ISOTOPIA-warning: missing cross sections for 2 nuclide(s): Nb97 stable Zr95 5.5e+06 s",
+        "ISOTOPIA-warning: no SRIM stopping table"]
